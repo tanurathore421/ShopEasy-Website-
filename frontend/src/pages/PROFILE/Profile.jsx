@@ -1,93 +1,79 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import "./Profile.css";
 
 function Profile() {
-
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
 
-
-  // Get user profile
   useEffect(() => {
-
     const getProfile = async () => {
+      const token = localStorage.getItem("token");
+
+      // Not logged in
+      if (!token) {
+        navigate("/auth");
+        return;
+      }
 
       try {
-        // Get token from localStorage
-        const token = localStorage.getItem("token");
-
-        // If no token, go to login
-        if (!token) {
-          navigate("/auth");
-          return;
-        }
-
-        // Send token to backend
         const response = await axios.get(
           "http://localhost:3000/api/auth/profile",
           {
             headers: {
               Authorization: `Bearer ${token}`,
             },
+            withCredentials: true,
           }
         );
 
-        console.log(
-          "Profile data:",
-          response.data
+        console.log("PROFILE:", response.data);
+
+        setUser(response.data);
+      } catch (error) {
+        console.error(
+          "PROFILE ERROR:",
+          error.response?.data || error.message
         );
 
-        // Store user data
-        setUser(response.data);
+        // Only logout if token is invalid
+        if (error.response?.status === 401) {
+          localStorage.removeItem("token");
 
-      } catch (error) {
+          window.dispatchEvent(
+            new Event("logout")
+          );
 
-        console.log("Profile error:", error);
-
-        // Remove invalid token
-        localStorage.removeItem("token");
-
-        // Go to login
-        navigate("/auth");
-
+          navigate("/auth");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     getProfile();
-
   }, [navigate]);
 
-
-  // Logout
   const handleLogout = () => {
-
     localStorage.removeItem("token");
+
+    window.dispatchEvent(
+      new Event("logout")
+    );
 
     navigate("/auth");
   };
 
-
-  // Loading screen
   if (loading) {
-    return (
-      <h2>Loading profile...</h2>
-    );
+    return <h2>Loading profile...</h2>;
   }
 
-
-  // If user not found
   if (!user) {
-    return (
-      <h2>User not found</h2>
-    );
+    return <h2>Unable to load profile</h2>;
   }
-
 
   const details = [
     ["Full Name", user.name],
@@ -96,43 +82,18 @@ function Profile() {
     ["Address", user.address],
   ];
 
-
-  const settings = [
-    [
-      "My Orders",
-      "View and track your orders",
-      "View",
-    ],
-    [
-      "Change Password",
-      "Update your account password",
-      "Change",
-    ],
-    [
-      "Logout",
-      "Sign out from your account",
-      "Logout",
-    ],
-  ];
-
-
   return (
     <main className="profile-page">
 
       <section className="profile-container">
 
         <header className="profile-header">
-
-          <h1>
-            My Profile
-          </h1>
+          <h1>My Profile</h1>
 
           <p>
             Manage your account information
           </p>
-
         </header>
-
 
         <section className="profile-card">
 
@@ -140,21 +101,17 @@ function Profile() {
 
             <span className="profile-avatar">
               {user.name
-                .charAt(0)
+                ?.charAt(0)
                 .toUpperCase()}
             </span>
 
-
             <h2>
-
               {user.name}
 
               <small>
                 {user.email}
               </small>
-
             </h2>
-
 
             <button className="edit-btn">
               Edit Profile
@@ -162,84 +119,81 @@ function Profile() {
 
           </div>
 
-
           <div className="profile-details">
 
-            {details.map(
-              ([label, value]) => (
+            {details.map(([label, value]) => (
+              <p
+                className="detail-box"
+                key={label}
+              >
+                <span>{label}</span>
 
-                <p
-                  className="detail-box"
-                  key={label}
-                >
-
-                  <span>
-                    {label}
-                  </span>
-
-                  <strong>
-                    {value}
-                  </strong>
-
-                </p>
-
-              )
-            )}
+                <strong>
+                  {value || "Not provided"}
+                </strong>
+              </p>
+            ))}
 
           </div>
 
         </section>
 
-
         <section className="account-card">
 
-          <h2>
-            Account Settings
-          </h2>
+          <h2>Account Settings</h2>
 
+          <div className="setting-item">
 
-          {settings.map(
-            ([title, description, button]) => (
+            <p>
+              <strong>My Orders</strong>
 
-              <div
-                className="setting-item"
-                key={title}
-              >
+              <span>
+                View and track your orders
+              </span>
+            </p>
 
-                <p>
+            <button
+              onClick={() => navigate("/orders")}
+            >
+              View
+            </button>
 
-                  <strong>
-                    {title}
-                  </strong>
+          </div>
 
-                  <span>
-                    {description}
-                  </span>
+          <div className="setting-item">
 
-                </p>
+            <p>
+              <strong>Change Password</strong>
 
+              <span>
+                Update your account password
+              </span>
+            </p>
 
-                <button
-                  className={
-                    button === "Logout"
-                      ? "logout-btn"
-                      : ""
-                  }
-                  onClick={
-                    button === "Logout"
-                      ? handleLogout
-                      : undefined
-                  }
-                >
+            <button>
+              Change
+            </button>
 
-                  {button}
+          </div>
 
-                </button>
+          <div className="setting-item">
 
-              </div>
+            <p>
+              <strong>Logout</strong>
 
-            )
-          )}
+              <span>
+                Sign out from your account
+              </span>
+            </p>
+
+            <button
+              className="logout-btn"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+
+          </div>
 
         </section>
 
@@ -250,4 +204,3 @@ function Profile() {
 }
 
 export default Profile;
-

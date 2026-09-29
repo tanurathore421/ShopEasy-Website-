@@ -3,39 +3,49 @@ import axios from "axios";
 import "./Order.css";
 import { useNavigate } from "react-router-dom";
 
-
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
 
-  //get orders
   const fetchOrders = async () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/auth");
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        console.log("No token found");
-         navigate("/auth");
-        return;
-      }
-
       const response = await axios.get(
         "http://localhost:3000/api/orders/orders",
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
+          withCredentials: true,
+        }
       );
+
+      console.log("ORDERS:", response.data);
 
       setOrders(response.data.orders || []);
     } catch (error) {
       console.error(
-        "Error fetching orders:",
-        error.response?.data || error.message,
+        "ORDERS ERROR:",
+        error.response?.data || error.message
       );
+
+      if (error.response?.status === 401) {
+        localStorage.removeItem("token");
+
+        window.dispatchEvent(
+          new Event("logout")
+        );
+
+        navigate("/auth");
+      }
     } finally {
       setLoading(false);
     }
@@ -43,7 +53,104 @@ const Orders = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [navigate]);
+
+  const cancelOrder = async (orderId) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/auth");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this order?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await axios.put(
+        `http://localhost:3000/api/orders/${orderId}/cancel`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order._id === orderId
+            ? {
+                ...order,
+                status: "Cancelled",
+              }
+            : order
+        )
+      );
+    } catch (error) {
+      console.error(
+        "CANCEL ERROR:",
+        error.response?.data || error.message
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Failed to cancel order"
+      );
+    }
+  };
+
+  const removeOrder = async (orderId) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      navigate("/auth");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to remove this order?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await axios.delete(
+        `http://localhost:3000/api/orders/remove/${orderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      // Remove immediately from UI
+      setOrders((prevOrders) =>
+        prevOrders.filter(
+          (order) => order._id !== orderId
+        )
+      );
+    } catch (error) {
+      console.error(
+        "REMOVE ERROR:",
+        error.response?.data || error.message
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Failed to remove order"
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -54,115 +161,46 @@ const Orders = () => {
     );
   }
 
-  // Calculate total of all orders
-  const grandTotal = orders.reduce((total, order) => {
-    const price = order.productId?.price || 0;
-    const quantity = order.quantity || 0;
+  const grandTotal = orders.reduce(
+    (total, order) => {
+      const price = order.productId?.price || 0;
+      const quantity = order.quantity || 0;
 
-    return total + price * quantity;
-  }, 0);
-
-  //cancel order
-  const cancelOrder = async (orderId) => {
-    try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        console.log("No token found");
-        return;
-      }
-
-      const confirmed = window.confirm(
-        "Are you sure you want to cancel this order?",
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      await axios.put(
-        `http://localhost:3000/api/orders/${orderId}/cancel`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      // Update the status immediately in the UI
-      setOrders((prevOrders) =>
-        prevOrders.map((order) =>
-          order._id === orderId ? { ...order, status: "Cancelled" } : order,
-        ),
-      );
-    } catch (error) {
-      console.error(
-        "Error cancelling order:",
-        error.response?.data || error.message,
-      );
-
-      alert(error.response?.data?.message || "Failed to cancel order");
-    }
-  };
-
-  //remove order
-  const removeOrder= async (orderId) => {
-    try{
-      const token = localStorage.getItem("token");
-
-      if(!token){
-        console.log("No token found");
-        return;
-      }
-    console.log("Deleting order ID:", orderId);
-
-      const confirmed = window.confirm(
-        "Are you sure you want to remove this order?",
-      );  
-
-      if(!confirmed){
-        return;
-      }
-
-      await axios.delete(
-        `http://localhost:3000/api/orders/remove/${orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-    }catch(error){
-      console.error(
-        "Error removing order:",
-        error.response?.data || error.message,
-      );
-      alert(error.response?.data?.message || "Failed to remove order");
-    }
-  }
+      return total + price * quantity;
+    },
+    0
+  );
 
   return (
     <div className="orders-page">
+
       <h1>My Orders</h1>
 
       {orders.length === 0 ? (
         <div className="no-orders">
           <h2>No orders yet</h2>
-          <p>Your previous orders will appear here.</p>
+
+          <p>
+            Your previous orders will appear here.
+          </p>
         </div>
       ) : (
         <>
           <div className="orders-list">
+
             {orders.map((order) => {
               const product = order.productId;
 
-              // Calculate individual order total
-              const orderTotal = (product?.price || 0) * (order.quantity || 0);
+              const orderTotal =
+                (product?.price || 0) *
+                (order.quantity || 0);
 
               return (
-                <div className="order-card" key={order._id}>
+                <div
+                  className="order-card"
+                  key={order._id}
+                >
+
                   {product?.image && (
                     <img
                       src={product.image}
@@ -172,18 +210,24 @@ const Orders = () => {
                   )}
 
                   <div className="order-details">
-                    <h2>{product?.name || "Product"}</h2>
+
+                    <h2>
+                      {product?.name || "Product"}
+                    </h2>
 
                     <p>
-                      <strong>Price:</strong> ₹ {product?.price || 0}
+                      <strong>Price:</strong>{" "}
+                      ₹ {product?.price || 0}
                     </p>
 
                     <p>
-                      <strong>Quantity:</strong> {order.quantity}
+                      <strong>Quantity:</strong>{" "}
+                      {order.quantity}
                     </p>
 
                     <p>
-                      <strong>Total:</strong> ₹ {orderTotal}
+                      <strong>Total:</strong>{" "}
+                      ₹ {orderTotal}
                     </p>
 
                     <p>
@@ -198,47 +242,57 @@ const Orders = () => {
                       order.status !== "Delivered" && (
                         <button
                           className="cancel-order-btn"
-                          onClick={() => cancelOrder(order._id)}
+                          onClick={() =>
+                            cancelOrder(order._id)
+                          }
                         >
                           Cancel Order
                         </button>
                       )}
 
-                      
-                    {
-                      order.status !== "Shipped" &&
+                    {order.status !== "Shipped" &&
                       order.status !== "Delivered" && (
                         <button
                           className="cancel-order-btn"
-                          onClick={() => removeOrder(order._id)}
+                          onClick={() =>
+                            removeOrder(order._id)
+                          }
                         >
                           Remove Order
                         </button>
                       )}
 
                     <p>
-                      <strong>Order ID:</strong> {order._id}
+                      <strong>Order ID:</strong>{" "}
+                      {order._id}
                     </p>
 
                     <p>
                       <strong>Ordered on:</strong>{" "}
                       {order.orderDate
-                        ? new Date(order.orderDate).toLocaleDateString()
+                        ? new Date(
+                            order.orderDate
+                          ).toLocaleDateString()
                         : "Date unavailable"}
                     </p>
+
                   </div>
                 </div>
               );
             })}
+
           </div>
 
-          {/* Grand Total */}
           <div className="grand-total">
             <h2>Total Bill</h2>
-            <h3>₹ {grandTotal}</h3>
+
+            <h3>
+              ₹ {grandTotal}
+            </h3>
           </div>
         </>
       )}
+
     </div>
   );
 };

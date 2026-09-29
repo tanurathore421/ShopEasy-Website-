@@ -1,4 +1,4 @@
-import { useState ,useEffect} from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import "./Login.css";
 import { useNavigate } from "react-router-dom";
@@ -9,28 +9,30 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState("");
-  const[captchaImage, setCaptchaImage] = useState("");
+  const [captchaImage, setCaptchaImage] = useState("");
 
-  //get captcha from backend
-  const getCaptcha=async()=>{
-    try{
-      const response = await axios.get("http://localhost:3000/api/captcha/captcha",
+  // Get CAPTCHA
+  const getCaptcha = async () => {
+    try {
+      const response = await axios.get(
+        "http://localhost:3000/api/captcha/captcha",
         {
-          withCredentials: true
+          withCredentials: true,
         }
       );
-      setCaptchaImage(response.data.captcha);
 
-    }catch(error){
-      console.log("CAPTCHA ERROR:", error);
-  }
+      setCaptchaImage(response.data.captcha);
+      setCaptcha("");
+    } catch (error) {
+      console.error("CAPTCHA ERROR:", error);
+    }
   };
 
   useEffect(() => {
     getCaptcha();
-  },[]);
+  }, []);
 
-
+  // Login
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -47,9 +49,9 @@ function Login() {
           password,
           captcha,
         },
-          {
-                withCredentials: true
-            }
+        {
+          withCredentials: true,
+        }
       );
 
       const token = response.data.token;
@@ -59,16 +61,25 @@ function Login() {
         return;
       }
 
+      // Save token
       localStorage.setItem("token", token);
 
+      // Tell Navbar user logged in
+      window.dispatchEvent(new Event("login"));
+
+      alert("Login successful");
+
+      // Go to profile
       navigate("/profile");
     } catch (error) {
-      console.log("LOGIN ERROR:", error);
-      console.log("SERVER RESPONSE:", error.response?.data);
+      console.error("LOGIN ERROR:", error);
+      console.error("SERVER RESPONSE:", error.response?.data);
 
-      alert(error.response?.data?.message || "Login failed");
+      alert(
+        error.response?.data?.message || "Login failed"
+      );
 
-      // Refresh captcha after failed login
+      // Refresh CAPTCHA
       getCaptcha();
     }
   };
@@ -76,15 +87,20 @@ function Login() {
   return (
     <div className="login-page">
       <div className="login-box">
+
         <div className="logo">
           Shop<span>Easy</span>
         </div>
 
         <h2>Welcome Back!</h2>
 
-        <p className="subtitle">Login to your account</p>
+        <p className="subtitle">
+          Login to your account
+        </p>
 
         <form onSubmit={handleLogin}>
+
+          {/* Email */}
           <div className="input-group">
             <label>Email</label>
 
@@ -96,6 +112,7 @@ function Login() {
             />
           </div>
 
+          {/* Password */}
           <div className="input-group">
             <label>Password</label>
 
@@ -107,45 +124,61 @@ function Login() {
             />
           </div>
 
-        {/*captcha section*/}
-     <div className="captcha-group">
-  <div className="captcha-box">
-    <span>{captchaImage}</span>
-  </div>
+          {/* CAPTCHA */}
+          <div className="captcha-group">
 
-  <button
-    type="button"
-    className="captcha-refresh"
-    onClick={getCaptcha}
-  >
-    ↻
-  </button>
+            <div className="captcha-box">
+              <span>{captchaImage}</span>
+            </div>
 
-  <input
-    type="text"
-    placeholder="Enter CAPTCHA"
-    value={captcha}
-    onChange={(e) => setCaptcha(e.target.value)}
-  />
-</div>
+            <button
+              type="button"
+              className="captcha-refresh"
+              onClick={getCaptcha}
+            >
+              ↻
+            </button>
 
-          <div className="options">
-            <label>
-              Remember me
-              <input type="checkbox" />
-            </label>
+            <input
+              type="text"
+              placeholder="Enter CAPTCHA"
+              value={captcha}
+              onChange={(e) =>
+                setCaptcha(e.target.value)
+              }
+            />
 
-            <a href="/">Forgot Password?</a>
           </div>
 
-          <button type="submit">Login</button>
+          {/* Options */}
+          <div className="options">
+
+            <label>
+              <input type="checkbox" />
+              Remember me
+            </label>
+
+            <a href="/auth">
+              Forgot Password?
+            </a>
+
+          </div>
+
+          <button type="submit">
+            Login
+          </button>
+
         </form>
 
         <p className="signup">
           Don't have an account?
           <br />
-          <a href="/register">Sign Up</a>
+
+          <a href="/register">
+            Sign Up
+          </a>
         </p>
+
       </div>
     </div>
   );
