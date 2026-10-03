@@ -164,6 +164,8 @@ function Cart() {
         return;
       }
 
+        window.location.href = "/checkout";
+
       // Place every cart item as an order
       for (const item of cart) {
         await axios.post(

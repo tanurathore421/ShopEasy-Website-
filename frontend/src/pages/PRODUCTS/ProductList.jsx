@@ -50,49 +50,81 @@ function ProductList() {
   // =========================
   // ADD TO CART
   // =========================
-  const addToCart = (product) => {
- /*    // Check login first
-    if (!checkLogin()) {
-      return;
-    } */
+const addToCart = (product) => {
+  const token = localStorage.getItem("token");
 
-    const existingCart =
-      JSON.parse(localStorage.getItem("cart")) || [];
+  if (!token) {
+    alert("Please login first");
+    navigate("/auth");
+    return;
+  }
 
-    const existingProduct = existingCart.find(
-      (item) => item._id === product._id
+  // Get user ID from JWT
+  let userId;
+
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[1])
     );
 
-    let updatedCart;
+    userId = payload.userId;
+  } catch (error) {
+    console.error("TOKEN ERROR:", error);
+    alert("Invalid login session");
+    localStorage.removeItem("token");
+    navigate("/auth");
+    return;
+  }
 
-    if (existingProduct) {
-      updatedCart = existingCart.map((item) =>
-        item._id === product._id
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-            }
-          : item
-      );
-    } else {
-      updatedCart = [
-        ...existingCart,
-        {
-          ...product,
-          quantity: 1,
-        },
-      ];
-    }
+  if (!userId) {
+    alert("User ID not found");
+    return;
+  }
 
-    localStorage.setItem(
-      "cart",
-      JSON.stringify(updatedCart)
+  // IMPORTANT:
+  // Use the SAME key as Cart.jsx
+  const cartKey = `cart_${userId}`;
+
+  const existingCart =
+    JSON.parse(localStorage.getItem(cartKey) || "[]");
+
+  const existingProduct = existingCart.find(
+    (item) => item._id === product._id
+  );
+
+  let updatedCart;
+
+  if (existingProduct) {
+    updatedCart = existingCart.map((item) =>
+      item._id === product._id
+        ? {
+            ...item,
+            quantity: (item.quantity || 0) + 1,
+          }
+        : item
     );
+  } else {
+    updatedCart = [
+      ...existingCart,
+      {
+        ...product,
+        quantity: 1,
+      },
+    ];
+  }
 
-    alert("Product added to cart!");
+  localStorage.setItem(
+    cartKey,
+    JSON.stringify(updatedCart)
+  );
 
-    navigate("/cart");
-  };
+  console.log("Cart saved:", updatedCart);
+  console.log("Cart key:", cartKey);
+
+  alert("Product added to cart!");
+
+  navigate("/cart");
+};
 
   // =========================
   // BUY NOW

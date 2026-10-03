@@ -1,0 +1,101 @@
+/* Checkout.css */
+
+.checkout-page {
+  width: 100%;
+  max-width: 600px;
+  margin: 60px auto;
+  padding: 35px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+}
+
+.checkout-page h1 {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 32px;
+  color: #222;
+}
+
+.checkout-page h2 {
+  margin: 30px 0 20px;
+  font-size: 20px;
+  color: #444;
+}
+
+/* Payment options */
+.checkout-page > div {
+  margin-bottom: 15px;
+}
+
+.checkout-page label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 2px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 17px;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.checkout-page label:hover {
+  border-color: #2878f0;
+  background: #f5f9ff;
+}
+
+/* Radio button */
+.checkout-page input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #2878f0;
+  cursor: pointer;
+}
+
+/* Continue button */
+.checkout-page button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #2878f0;
+  color: white;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.checkout-page button:hover {
+  background: #155dcc;
+  transform: translateY(-1px);
+}
+
+.checkout-page button:active {
+  transform: translateY(0);
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .checkout-page {
+    margin: 30px 15px;
+    padding: 25px 20px;
+  }
+
+  .checkout-page h1 {
+    font-size: 27px;
+  }
+
+  .checkout-page h2 {
+    font-size: 18px;
+  }
+
+  .checkout-page label {
+    padding: 15px;
+    font-size: 15px;
+  }
+}

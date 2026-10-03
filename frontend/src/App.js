@@ -12,6 +12,7 @@ import Cart from "./pages/CART/cart";
 import Orders from "./pages/ORDERS/Order";
 import AdminDashboard from "./pages/admin/admin";
 import Auth from "./pages/AUTH/auth";
+import Checkout from "./pages/CHECKOUT/checkout";
 
 
 
@@ -27,6 +28,8 @@ function App() {
         <Route path="/products" element={<ProductList />} />
         <Route path="/category" element={<Categories />} />
         <Route path="/profile" element={<Profile />} />
+                 <Route path="/checkout" element={<Checkout />} />
+
 
         <Route path="/cart" element={<Cart />} />
         <Route path="/orders" element={<Orders />} />
