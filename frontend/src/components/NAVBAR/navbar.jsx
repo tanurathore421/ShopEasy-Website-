@@ -49,6 +49,8 @@ export function Navbar() {
         CART
       </NavLink>
 
+  
+
       {isLoggedIn && (
         <>
           <NavLink to="/profile">
@@ -66,6 +68,11 @@ export function Navbar() {
           Login/Sign Up
         </NavLink>
       )}
+
+          
+      <NavLink to="/help">
+        HELP
+      </NavLink>
 
     </nav>
   );

@@ -103,7 +103,7 @@ const loginUser = async (req, res) => {
       },
     );
 
-    console.log("Token:", token);
+    
 
     // Store user ID and login status in session
     req.session.userId = user._id;

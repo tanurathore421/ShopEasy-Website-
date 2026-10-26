@@ -9,8 +9,11 @@ const authRoutes=require("./ROUTES/authRoutes");
 const captchaRoutes=require("./ROUTES/captchaRoutes");
 const productRoutes=require("./ROUTES/productRoutes");
 const orderRoutes=require("./ROUTES/orderRoutes");
+const paymentRoutes=require("./ROUTES/paymentRoutes");
+const helpChatRoutes = require("./ROUTES/helpChatRoutes");
 const cors=require("cors");
 const session = require("express-session");
+
 
 dotenv.config();
 
@@ -41,6 +44,9 @@ app.use("/api/auth",authRoutes);
 app.use("/api/captcha",captchaRoutes);
 app.use("/api/products",productRoutes);
 app.use("/api/orders",orderRoutes);
+app.use("/api/payment", paymentRoutes);
+app.use("/api/help-chat", helpChatRoutes);
+
 const PORT=process.env.PORT||5000;
 
 app.listen(PORT,()=>{

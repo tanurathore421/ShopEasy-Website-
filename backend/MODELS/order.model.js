@@ -43,10 +43,24 @@ const orderSchema = new mongoose.Schema(
       enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
       default: "Pending",
     },
+
+    paymentRecordId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Payment",
+},
   },
   {
     timestamps: true,
   },
 );
 
+orderSchema.index(
+  { paymentRecordId: 1, productId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      paymentRecordId: { $exists: true },
+    },
+  }
+);
 module.exports = mongoose.model("Order", orderSchema);

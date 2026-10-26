@@ -1,4 +1,169 @@
+
 import "./ProductList.css";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+function ProductList() {
+  const navigate = useNavigate();
+
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const API_URL = "http://localhost:3000/api";
+
+  const getUserIdFromToken = (token) => {
+    try {
+      const payload = JSON.parse(
+        atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+      );
+      return payload.userId;
+    } catch {
+      return null;
+    }
+  };
+
+  const getProducts = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/products/all`);
+      setProducts(
+        Array.isArray(response.data)
+          ? response.data
+          : response.data.products || []
+      );
+    } catch (error) {
+      console.error("GET PRODUCTS ERROR:", error);
+      alert("Unable to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getProducts();
+  }, []);
+
+  const checkLogin = () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login first");
+      navigate("/auth");
+      return null;
+    }
+
+    const userId = getUserIdFromToken(token);
+
+    if (!userId) {
+      alert("Invalid login session. Please login again.");
+      localStorage.removeItem("token");
+      navigate("/auth");
+      return null;
+    }
+
+    return { token, userId };
+  };
+
+  // Add product to the logged-in user's cart
+  const addToCart = (product) => {
+    const user = checkLogin();
+    if (!user) return;
+
+    const cartKey = `cart_${user.userId}`;
+
+    try {
+      const existingCart = JSON.parse(
+        localStorage.getItem(cartKey) || "[]"
+      );
+
+      const existingProduct = existingCart.find(
+        (item) => item._id === product._id
+      );
+
+      const updatedCart = existingProduct
+        ? existingCart.map((item) =>
+            item._id === product._id
+              ? { ...item, quantity: (item.quantity || 0) + 1 }
+              : item
+          )
+        : [...existingCart, { ...product, quantity: 1 }];
+
+      localStorage.setItem(cartKey, JSON.stringify(updatedCart));
+
+      alert("Product added to cart!");
+      navigate("/cart");
+    } catch (error) {
+      console.error("ADD TO CART ERROR:", error);
+      alert("Unable to update cart");
+    }
+  };
+
+  // Buy Now: save a one-product checkout cart, then open checkout
+  const handleBuy = (product) => {
+    const user = checkLogin();
+    if (!user) return;
+
+    const buyNowKey = `buynow_${user.userId}`;
+
+    const buyNowCart = [
+      {
+        ...product,
+        quantity: 1,
+      },
+    ];
+
+    localStorage.setItem(buyNowKey, JSON.stringify(buyNowCart));
+
+    // Tell Checkout.jsx to use the Buy Now cart
+    navigate("/checkout", {
+      state: { mode: "buyNow" },
+    });
+  };
+
+  if (loading) {
+    return <h2>Loading products...</h2>;
+  }
+
+  return (
+    <div className="product-page">
+      <h1>Our Products</h1>
+
+      <div className="product-container">
+        {products.map((product) => (
+          <div className="product-card" key={product._id}>
+            <img
+              src={product.image}
+              alt={product.name}
+              className="product-image"
+            />
+
+            <h2>{product.name}</h2>
+
+            <p className="price">₹ {product.price}</p>
+
+            <button
+              className="details-btn"
+              onClick={() => handleBuy(product)}
+            >
+              Buy Now
+            </button>
+
+            <button
+              className="cart-btn"
+              onClick={() => addToCart(product)}
+            >
+              Add to Cart
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default ProductList;
+
+/* import "./ProductList.css";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -238,3 +403,4 @@ export default ProductList;
 
 
 
+ */

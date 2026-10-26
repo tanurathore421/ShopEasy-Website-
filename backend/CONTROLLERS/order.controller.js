@@ -1,5 +1,95 @@
 const Order = require("../MODELS/order.model");
 
+const Product = require("../MODELS/product.model");
+
+
+  // ==========================================
+    //COD ORDER
+    // ==========================================
+const placeCodOrder = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { items } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "User is not authenticated",
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "Cart is empty",
+      });
+    }
+
+    // Validate all products before creating any orders
+    const validatedItems = [];
+
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+
+      if (
+        !item.productId ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 100
+      ) {
+        return res.status(400).json({
+          message: "Invalid product ID or quantity",
+        });
+      }
+
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        return res.status(404).json({
+          message: `Product not found: ${item.productId}`,
+        });
+      }
+
+      const price = Number(product.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        return res.status(400).json({
+          message: "Invalid product price",
+        });
+      }
+
+      validatedItems.push({
+        productId: product._id,
+        quantity,
+        price,
+        totalAmount: price * quantity,
+      });
+    }
+
+    const orders = await Order.insertMany(
+      validatedItems.map((item) => ({
+        userId,
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        totalAmount: item.totalAmount,
+        status: "Processing",
+      }))
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "COD order placed successfully",
+      orders,
+    });
+  } catch (error) {
+    console.error("COD ORDER ERROR:", error);
+
+    return res.status(500).json({
+      message: "Failed to place COD order",
+      error: error.message,
+    });
+  }
+};
+
   // ==========================================
     // PLACE ORDER OR INCREASE EXISTING ORDER
     // ==========================================
@@ -215,6 +305,8 @@ module.exports = {
   getOrder,
   cancelOrder,
   removeOrder,
+  placeCodOrder,
+
 };
 
 

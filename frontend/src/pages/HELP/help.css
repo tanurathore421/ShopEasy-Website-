@@ -1,0 +1,77 @@
+
+.help-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 35px 20px;
+  color: #222;
+}
+
+.help-header {
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.help-header h1 {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.help-header p {
+  color: #666;
+}
+
+.help-container {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.help-card {
+  padding: 24px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.05);
+}
+
+.help-card h2 {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.help-card p {
+  color: #666;
+  line-height: 1.6;
+}
+
+.help-contact {
+  margin-top: 30px;
+  padding: 25px;
+  text-align: center;
+  background: #f5f7fa;
+  border-radius: 12px;
+}
+
+.help-button {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 11px 22px;
+  border-radius: 6px;
+  background: #1769aa;
+  color: #fff;
+  text-decoration: none;
+}
+
+.help-button:hover {
+  background: #10558c;
+}
+
+@media (max-width: 600px) {
+  .help-container {
+    grid-template-columns: 1fr;
+  }
+
+  .help-header h1 {
+    font-size: 26px;
+  }
+}
