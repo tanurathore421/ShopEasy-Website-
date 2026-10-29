@@ -1,0 +1,252 @@
+
+.manage-wholesalers {
+  width: 100%;
+  color: #202938;
+}
+
+.wholesaler-page-header,
+.wholesaler-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wholesaler-page-header {
+  margin-bottom: 24px;
+}
+
+.wholesaler-page-header h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.wholesaler-page-header p,
+.wholesaler-list-header p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.wholesaler-refresh-btn,
+.wholesaler-form-actions button {
+  border: 0;
+  border-radius: 7px;
+  padding: 11px 17px;
+  background: #1769aa;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wholesaler-refresh-btn:disabled,
+.wholesaler-form-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wholesaler-form-card,
+.wholesaler-list-card {
+  margin-bottom: 24px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
+}
+
+.wholesaler-form-card h2,
+.wholesaler-list-card h2 {
+  margin: 0 0 20px;
+  font-size: 21px;
+}
+
+.wholesaler-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.wholesaler-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.wholesaler-form-grid input,
+.wholesaler-form-grid textarea,
+.wholesaler-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  outline: none;
+  background: #fff;
+  color: #202938;
+  font: inherit;
+  font-weight: 400;
+}
+
+.wholesaler-form-grid input:focus,
+.wholesaler-form-grid textarea:focus,
+.wholesaler-search:focus {
+  border-color: #1769aa;
+  box-shadow: 0 0 0 3px rgba(23, 105, 170, 0.12);
+}
+
+.wholesaler-form-grid textarea {
+  resize: vertical;
+}
+
+.full-width-field {
+  grid-column: 1 / -1;
+}
+
+.wholesaler-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.wholesaler-form-actions .wholesaler-cancel-btn {
+  background: #6b7280;
+}
+
+.wholesaler-alert {
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  border-radius: 7px;
+  line-height: 1.5;
+}
+
+.error-alert {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.success-alert {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.wholesaler-list-header {
+  margin-bottom: 20px;
+}
+
+.wholesaler-list-header h2 {
+  margin-bottom: 6px;
+}
+
+.wholesaler-search {
+  max-width: 320px;
+}
+
+.wholesaler-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.wholesaler-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.wholesaler-table th,
+.wholesaler-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+
+.wholesaler-table th {
+  background: #f9fafb;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.wholesaler-table td {
+  overflow-wrap: anywhere;
+}
+
+.wholesaler-status {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wholesaler-status.active {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.wholesaler-status.inactive {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.wholesaler-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wholesaler-row-actions button {
+  border: 0;
+  border-radius: 5px;
+  padding: 7px 10px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.edit-wholesaler-btn {
+  background: #2563eb;
+}
+
+.deactivate-wholesaler-btn {
+  background: #dc2626;
+}
+
+.activate-wholesaler-btn {
+  background: #15803d;
+}
+
+.wholesaler-empty-state {
+  padding: 24px 10px;
+  color: #6b7280;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .wholesaler-form-card,
+  .wholesaler-list-card {
+    padding: 16px;
+  }
+
+  .wholesaler-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .full-width-field {
+    grid-column: auto;
+  }
+
+  .wholesaler-page-header h1 {
+    font-size: 24px;
+  }
+
+  .wholesaler-search {
+    max-width: none;
+  }
+}

@@ -1,5 +1,13 @@
+
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
+import { useEffect } from "react";
+
 import { Home } from "./pages/HOME/Home";
 import Register from "./pages/REGISTER/Register";
 import Login from "./pages/LOGIN/Login";
@@ -10,19 +18,29 @@ import Categories from "./pages/CATEGORY/categories";
 import Profile from "./pages/PROFILE/Profile";
 import Cart from "./pages/CART/cart";
 import Orders from "./pages/ORDERS/Order";
-import AdminDashboard from "./pages/admin/admin";
+import AdminDashboard from "./pages/ADMIN/admin";
 import Auth from "./pages/AUTH/auth";
 import Checkout from "./pages/CHECKOUT/checkout";
 import Help from "./pages/HELP/help";
-import HelpChat from "./components/HELPCHAT/helpChat";
 
+function AppLayout() {
+  const { pathname } = useLocation();
 
+  // The admin area has its own sidebar and layout.
+  const isAdminPage = pathname.startsWith("/admin");
 
-function App() {
+  useEffect(() => {
+  document.body.classList.toggle("admin-route-active", isAdminPage);
+
+  return () => {
+    document.body.classList.remove("admin-route-active");
+  };
+}, [isAdminPage]);
 
   return (
-    <BrowserRouter>
-      <Navbar />
+    <>
+      {!isAdminPage && <Navbar />}
+
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/register" element={<Register />} />
@@ -30,21 +48,23 @@ function App() {
         <Route path="/products" element={<ProductList />} />
         <Route path="/category" element={<Categories />} />
         <Route path="/profile" element={<Profile />} />
-                 <Route path="/checkout" element={<Checkout />} />
-
-        <Route path="/help" element={<Help/>} />
-
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/help" element={<Help />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/orders" element={<Orders />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-         <Route path="/auth" element={<Auth />} />
-
-
-
+        <Route path="/admin/*" element={<AdminDashboard />} />
+        <Route path="/auth" element={<Auth />} />
       </Routes>
-      <Footer />
-       {/* Floating AI Customer Help Chat */}
-      <HelpChat />
+
+      {!isAdminPage && <Footer />}
+    </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppLayout />
     </BrowserRouter>
   );
 }
