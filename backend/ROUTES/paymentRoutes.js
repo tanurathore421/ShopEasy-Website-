@@ -11,6 +11,569 @@ const Payment = require("../MODELS/payment.model");
 
 const router = express.Router();
 
+const RESERVATION_MINUTES = 15;
+
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+  console.error("Razorpay API keys are missing from backend .env");
+}
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
+
+// JWT authentication
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "Please login before payment",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (!decoded.userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid login token",
+      });
+    }
+
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired login token",
+    });
+  }
+}
+
+// Restore reserved inventory
+async function restoreStock(items) {
+  for (const item of items) {
+    const result = await Product.updateOne(
+      { _id: item.productId },
+      { $inc: { stock: item.quantity } }
+    );
+
+    if (result.matchedCount !== 1) {
+      throw new Error(
+        `Could not restore stock for product ${item.productId}`
+      );
+    }
+  }
+}
+
+// Atomically reserve inventory
+async function reserveStock(items) {
+  const reserved = [];
+
+  for (const item of items) {
+    const product = await Product.findOneAndUpdate(
+      {
+        _id: item.productId,
+        isActive: { $ne: false },
+        stock: { $gte: item.quantity },
+      },
+      {
+        $inc: { stock: -item.quantity },
+      },
+      { new: true }
+    );
+
+    if (!product) {
+      await restoreStock(reserved);
+
+      return {
+        success: false,
+        productId: item.productId,
+      };
+    }
+
+    reserved.push(item);
+  }
+
+  return { success: true, reserved };
+}
+
+// Create Razorpay order and reserve stock
+router.post("/create-order", authenticate, async (req, res) => {
+  let reservedItems = [];
+
+  try {
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Your cart is empty",
+      });
+    }
+
+    if (items.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Too many products in cart",
+      });
+    }
+
+    const quantityMap = new Map();
+
+    for (const item of items) {
+      if (
+        !item ||
+        !mongoose.Types.ObjectId.isValid(item.productId) ||
+        !Number.isSafeInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 100
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid product or quantity",
+        });
+      }
+
+      const id = String(item.productId);
+      const quantity = (quantityMap.get(id) || 0) + item.quantity;
+
+      if (quantity > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Maximum quantity per product is 100",
+        });
+      }
+
+      quantityMap.set(id, quantity);
+    }
+
+    const productIds = [...quantityMap.keys()].sort();
+
+    const products = await Product.find({
+      _id: { $in: productIds },
+      isActive: { $ne: false },
+    });
+
+    if (products.length !== productIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Some products are unavailable",
+      });
+    }
+
+    const productMap = new Map(
+      products.map((product) => [String(product._id), product])
+    );
+
+    const orderItems = [];
+    let totalPaise = 0;
+
+    for (const [productId, quantity] of quantityMap) {
+      const product = productMap.get(productId);
+      const pricePaise = Math.round(Number(product.price) * 100);
+
+      if (!Number.isSafeInteger(pricePaise) || pricePaise <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid product price",
+        });
+      }
+
+      const itemTotalPaise = pricePaise * quantity;
+      totalPaise += itemTotalPaise;
+
+      if (!Number.isSafeInteger(totalPaise)) {
+        return res.status(400).json({
+          success: false,
+          message: "Cart total is too large",
+        });
+      }
+
+      orderItems.push({
+        productId: product._id,
+        quantity,
+        price: pricePaise / 100,
+        totalAmount: itemTotalPaise / 100,
+      });
+    }
+
+    if (totalPaise <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid cart total",
+      });
+    }
+
+    // Reserve stock before creating the payment order
+    const reservation = await reserveStock(orderItems);
+
+    if (!reservation.success) {
+      return res.status(409).json({
+        success: false,
+        message: "Insufficient stock. Please update your cart.",
+        productId: reservation.productId,
+      });
+    }
+
+    reservedItems = reservation.reserved;
+
+    try {
+      const razorpayOrder = await razorpay.orders.create({
+        amount: totalPaise,
+        currency: "INR",
+        receipt: `rcpt_${Date.now()}`,
+      });
+
+      await Payment.create({
+        userId: req.userId,
+        razorpayOrderId: razorpayOrder.id,
+        items: orderItems,
+        totalAmount: totalPaise / 100,
+        status: "Created",
+        stockReserved: true,
+        reservationExpiresAt: new Date(
+          Date.now() + RESERVATION_MINUTES * 60 * 1000
+        ),
+      });
+
+      reservedItems = [];
+
+      return res.json({
+        success: true,
+        orderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        keyId: process.env.RAZORPAY_KEY_ID,
+      });
+    } catch (error) {
+      // Release inventory if Razorpay order or payment record creation fails
+      await restoreStock(reservedItems);
+      reservedItems = [];
+      throw error;
+    }
+  } catch (error) {
+    console.error("Create payment order error:", error);
+
+    if (reservedItems.length > 0) {
+      try {
+        await restoreStock(reservedItems);
+      } catch (restoreError) {
+        console.error("Stock restoration error:", restoreError);
+      }
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to create payment order",
+    });
+  }
+});
+
+// Release reservation after checkout is closed without a successful payment
+router.post("/release-reservation", authenticate, async (req, res) => {
+  try {
+    const { razorpay_order_id } = req.body;
+
+    if (typeof razorpay_order_id !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Razorpay order ID is required",
+      });
+    }
+
+    const payment = await Payment.findOne({
+      razorpayOrderId: razorpay_order_id,
+      userId: req.userId,
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment order not found",
+      });
+    }
+
+    if (payment.status === "Paid") {
+      return res.status(409).json({
+        success: false,
+        message: "Payment is already completed",
+      });
+    }
+
+    if (!payment.stockReserved) {
+      return res.json({
+        success: true,
+        message: "Stock reservation was already released",
+      });
+    }
+
+    // Check Razorpay before releasing inventory.
+    // Do not release while a payment is captured, authorized, or in progress.
+    const paymentList = await razorpay.orders.fetchPayments(
+      razorpay_order_id
+    );
+
+    const payments = paymentList.items || [];
+
+    const paymentInProgress = payments.some((item) =>
+      ["created", "authorized", "captured"].includes(item.status)
+    );
+
+    if (paymentInProgress) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A payment attempt is still active. Stock has been kept reserved.",
+      });
+    }
+
+    // Lock this payment so concurrent requests cannot restore stock twice
+    const lockedPayment = await Payment.findOneAndUpdate(
+      {
+        _id: payment._id,
+        userId: req.userId,
+        status: "Created",
+        stockReserved: true,
+      },
+      {
+        $set: { status: "Releasing" },
+      },
+      { new: true }
+    );
+
+    if (!lockedPayment) {
+      return res.status(409).json({
+        success: false,
+        message: "Payment reservation is already being processed",
+      });
+    }
+
+    await restoreStock(lockedPayment.items);
+
+    lockedPayment.stockReserved = false;
+    lockedPayment.stockReleasedAt = new Date();
+    lockedPayment.status = "Failed";
+
+    await lockedPayment.save();
+
+    return res.json({
+      success: true,
+      message: "Stock reservation released successfully",
+    });
+  } catch (error) {
+    console.error("Release reservation error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to release stock reservation",
+    });
+  }
+});
+
+// Verify payment and create orders
+router.post("/verify-payment", authenticate, async (req, res) => {
+  let lockedPayment = null;
+
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    } = req.body;
+
+    if (
+      typeof razorpay_order_id !== "string" ||
+      typeof razorpay_payment_id !== "string" ||
+      typeof razorpay_signature !== "string"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification details are missing",
+      });
+    }
+
+    const paymentRecord = await Payment.findOne({
+      razorpayOrderId: razorpay_order_id,
+      userId: req.userId,
+    });
+
+    if (!paymentRecord) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment order not found",
+      });
+    }
+
+    if (paymentRecord.status === "Paid") {
+      return res.json({
+        success: true,
+        message: "Payment was already verified",
+      });
+    }
+
+    if (!paymentRecord.stockReserved) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Stock reservation is no longer active. Contact support to check your payment.",
+      });
+    }
+
+    // Verify Razorpay signature
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    const received = Buffer.from(razorpay_signature, "hex");
+    const expected = Buffer.from(expectedSignature, "hex");
+
+    if (
+      received.length !== expected.length ||
+      !crypto.timingSafeEqual(received, expected)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature",
+      });
+    }
+
+    const razorpayPayment = await razorpay.payments.fetch(
+      razorpay_payment_id
+    );
+
+    if (
+      razorpayPayment.order_id !== razorpay_order_id ||
+      razorpayPayment.amount !== Math.round(paymentRecord.totalAmount * 100) ||
+      razorpayPayment.currency !== "INR"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment details do not match the order",
+      });
+    }
+
+    if (razorpayPayment.status !== "captured") {
+      return res.status(409).json({
+        success: false,
+        message: "Payment has not been captured yet",
+      });
+    }
+
+    // Lock payment to prevent concurrent verification
+    lockedPayment = await Payment.findOneAndUpdate(
+      {
+        _id: paymentRecord._id,
+        userId: req.userId,
+        status: "Created",
+        stockReserved: true,
+      },
+      {
+        $set: { status: "Verifying" },
+      },
+      { new: true }
+    );
+
+    if (!lockedPayment) {
+      const latest = await Payment.findById(paymentRecord._id);
+
+      if (latest?.status === "Paid") {
+        return res.json({
+          success: true,
+          message: "Payment was already verified",
+        });
+      }
+
+      return res.status(409).json({
+        success: false,
+        message: "Payment verification is already in progress",
+      });
+    }
+
+    // Stock was already deducted during reservation.
+    // Do not deduct it again here.
+    for (const item of lockedPayment.items) {
+      await Order.updateOne(
+        {
+          paymentRecordId: lockedPayment._id,
+          productId: item.productId,
+        },
+        {
+          $setOnInsert: {
+            paymentRecordId: lockedPayment._id,
+            userId: lockedPayment.userId,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            totalAmount: item.totalAmount,
+            status: "Processing",
+            stockDeducted: true,
+          },
+        },
+        { upsert: true }
+      );
+    }
+
+    lockedPayment.razorpayPaymentId = razorpay_payment_id;
+    lockedPayment.razorpaySignature = razorpay_signature;
+    lockedPayment.status = "Paid";
+    lockedPayment.stockReserved = false;
+    lockedPayment.stockCommittedAt = new Date();
+    lockedPayment.reservationExpiresAt = null;
+
+    await lockedPayment.save();
+
+    return res.json({
+      success: true,
+      message: "Payment verified and order saved successfully",
+    });
+  } catch (error) {
+    console.error("Payment verification error:", error);
+
+    // Allow a safe retry. Existing upserted orders are duplicate-protected.
+    if (lockedPayment) {
+      await Payment.updateOne(
+        {
+          _id: lockedPayment._id,
+          status: "Verifying",
+        },
+        {
+          $set: { status: "Created" },
+        }
+      );
+    }
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Payment verification failed. Check Razorpay Dashboard before retrying.",
+    });
+  }
+});
+
+module.exports = router;
+
+
+/* 
+const express = require("express");
+const Razorpay = require("razorpay");
+const mongoose = require("mongoose");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+
+const Product = require("../MODELS/product.model");
+const Order = require("../MODELS/order.model");
+const Payment = require("../MODELS/payment.model");
+
+const router = express.Router();
+
 if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
   console.error("Razorpay API keys are missing from backend .env");
 }
@@ -337,3 +900,4 @@ router.post("/verify-payment", authenticate, async (req, res) => {
 });
 
 module.exports = router;
+ */

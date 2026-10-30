@@ -215,11 +215,15 @@
 }
 
 .deactivate-wholesaler-btn {
-  background: #dc2626;
+  background: #dc2626 !important;
+}
+
+.deactivate-wholesaler-btn:hover {
+  background: #b91c1c !important;
 }
 
 .activate-wholesaler-btn {
-  background: #15803d;
+  background: #15803d !important;
 }
 
 .wholesaler-empty-state {

@@ -1,12 +1,23 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-const { addProduct, getProducts } = require('../CONTROLLERS/product.controller');
+const {
+  addProduct,
+  getProducts,
+} = require("../CONTROLLERS/product.controller");
 
-//add new product
-router.post('/add',addProduct);
+const authMiddleware = require("../MIDDLEWARE/authMiddleware");
+const authorizeRoles = require("../MIDDLEWARE/authorizeRoles");
 
-//get all products
-router.get('/all',getProducts);
+// Only administrators can add products through this endpoint.
+router.post(
+  "/add",
+  authMiddleware,
+  authorizeRoles("admin"),
+  addProduct
+);
+
+// Public product listing.
+router.get("/all", getProducts);
 
 module.exports = router;

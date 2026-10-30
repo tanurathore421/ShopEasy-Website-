@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ManageWholesalers from "./ManageWholesalers";
 import ManageCustomers from "./ManageCustomers";
 import ManageOrders from "./ManageOrders";
+import ManageProducts from "./ManageProducts";
 import "./admin.css";
 
 const API_URL = "http://localhost:3000/api/admin/dashboard";
@@ -86,11 +87,7 @@ const AdminDashboard = () => {
   };
 
   const openSection = (section) => {
-    if (section === "products") {
-      navigate("/products");
-      return;
-    }
-
+  
     setActiveSection(section);
   };
 
@@ -111,6 +108,10 @@ const AdminDashboard = () => {
       title: "Order Management",
       description: "Review orders and manage fulfilment status.",
     },
+    products: {
+  title: "Product Management",
+  description: "Manage your store catalog and product availability.",
+},
   };
 
   if (storedRole && storedRole !== "admin") {
@@ -426,6 +427,7 @@ const AdminDashboard = () => {
           {activeSection === "wholesalers" && <ManageWholesalers />}
           {activeSection === "customers" && <ManageCustomers />}
           {activeSection === "orders" && <ManageOrders />}
+          {activeSection === "products" && <ManageProducts />}
         </div>
 
         <footer className="admin-footer">

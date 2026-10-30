@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -22,12 +21,7 @@ function Checkout() {
 
     try {
       const payload = JSON.parse(
-        atob(
-          token
-            .split(".")[1]
-            .replace(/-/g, "+")
-            .replace(/_/g, "/")
-        )
+        atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
       );
 
       if (!payload.userId) {
@@ -48,19 +42,15 @@ function Checkout() {
     const { userId } = getUserInfo();
 
     const isBuyNow = location.state?.mode === "buyNow";
-    const storageKey = isBuyNow
-      ? `buynow_${userId}`
-      : `cart_${userId}`;
+    const storageKey = isBuyNow ? `buynow_${userId}` : `cart_${userId}`;
 
-    const items = JSON.parse(
-      localStorage.getItem(storageKey) || "[]"
-    );
+    const items = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
     if (!Array.isArray(items) || items.length === 0) {
       throw new Error(
         isBuyNow
           ? "Buy Now product was not found. Please select the product again."
-          : "Your cart is empty"
+          : "Your cart is empty",
       );
     }
 
@@ -72,6 +62,32 @@ function Checkout() {
       localStorage.removeItem(`buynow_${userId}`);
     } else {
       localStorage.removeItem(`cart_${userId}`);
+    }
+  };
+
+  const releaseReservation = async (orderId, token) => {
+    if (!orderId) return;
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/payment/release-reservation`,
+        {
+          razorpay_order_id: orderId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        },
+      );
+
+      console.log("Stock reservation:", response.data.message);
+    } catch (error) {
+      console.error(
+        "Stock release result:",
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -100,7 +116,7 @@ function Checkout() {
             !item.productId ||
             !Number.isSafeInteger(item.quantity) ||
             item.quantity < 1 ||
-            item.quantity > 100
+            item.quantity > 100,
         )
       ) {
         throw new Error("Invalid checkout items. Please try again.");
@@ -116,14 +132,12 @@ function Checkout() {
               Authorization: `Bearer ${token}`,
             },
             withCredentials: true,
-          }
+          },
         );
 
         clearSuccessfulCheckout(userId, isBuyNow);
 
-        alert(
-          response.data.message || "Order placed successfully!"
-        );
+        alert(response.data.message || "Order placed successfully!");
 
         navigate("/orders");
         return;
@@ -138,7 +152,7 @@ function Checkout() {
             Authorization: `Bearer ${token}`,
           },
           withCredentials: true,
-        }
+        },
       );
 
       const { orderId, amount, currency, keyId } = response.data;
@@ -149,7 +163,7 @@ function Checkout() {
 
       if (!window.Razorpay) {
         throw new Error(
-          "Razorpay Checkout is not loaded. Add the Razorpay script to public/index.html."
+          "Razorpay Checkout is not loaded. Add the Razorpay script to public/index.html.",
         );
       }
 
@@ -166,19 +180,16 @@ function Checkout() {
             const verification = await axios.post(
               `${API_URL}/payment/verify-payment`,
               {
-                razorpay_order_id:
-                  paymentResponse.razorpay_order_id,
-                razorpay_payment_id:
-                  paymentResponse.razorpay_payment_id,
-                razorpay_signature:
-                  paymentResponse.razorpay_signature,
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
               },
               {
                 headers: {
                   Authorization: `Bearer ${token}`,
                 },
                 withCredentials: true,
-              }
+              },
             );
 
             if (verification.data.success) {
@@ -187,24 +198,21 @@ function Checkout() {
               alert("Payment successful! Your order has been saved.");
               navigate("/orders");
             } else {
-              console.error(
-                "Verification response:",
-                verification.data
-              );
+              console.error("Verification response:", verification.data);
 
               alert(
                 verification.data.message ||
-                  "Payment status could not be confirmed. Do not pay again yet."
+                  "Payment status could not be confirmed. Do not pay again yet.",
               );
             }
           } catch (error) {
             console.error(
               "Verification error:",
-              error.response?.data || error.message
+              error.response?.data || error.message,
             );
 
             alert(
-              "Payment may have succeeded, but order confirmation failed. Check Razorpay payment status before trying again."
+              "Payment may have succeeded, but order confirmation failed. Check Razorpay payment status before trying again.",
             );
           } finally {
             setLoading(false);
@@ -212,29 +220,29 @@ function Checkout() {
         },
 
         modal: {
-          ondismiss: () => {
+          ondismiss: async () => {
+            await releaseReservation(orderId, token);
             setLoading(false);
             console.log("Razorpay checkout closed");
           },
         },
-
         theme: {
           color: "#3399cc",
         },
       });
 
-      razorpay.on("payment.failed", (event) => {
+      razorpay.on("payment.failed", async (event) => {
         console.error("Payment failed:", event.error);
+
+        await releaseReservation(orderId, token);
+
         alert(event.error.description || "Payment failed");
         setLoading(false);
       });
 
       razorpay.open();
     } catch (error) {
-      console.error(
-        "Checkout error:",
-        error.response?.data || error.message
-      );
+      console.error("Checkout error:", error.response?.data || error.message);
 
       if (error.response?.status === 401) {
         alert("Your login session has expired. Please login again.");
@@ -244,7 +252,7 @@ function Checkout() {
         alert(
           error.response?.data?.message ||
             error.message ||
-            "Unable to start checkout"
+            "Unable to start checkout",
         );
       }
 

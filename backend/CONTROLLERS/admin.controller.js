@@ -759,6 +759,456 @@ const updateAdminOrderStatus = async (req, res) => {
 
 
 
+// ==========================================
+// GET PRODUCT
+// ==========================================
+
+const getAdminProducts = async (req, res) => {
+  try {
+    const page = Math.max(
+      1,
+      Number.parseInt(req.query.page, 10) || 1
+    );
+
+    const limit = Math.min(
+      100,
+      Math.max(1, Number.parseInt(req.query.limit, 10) || 10)
+    );
+
+    const filter = {};
+
+    if (typeof req.query.search === "string" && req.query.search.trim()) {
+      const escaped = req.query.search.trim().replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+      const pattern = new RegExp(escaped, "i");
+
+      filter.$or = [
+        { name: pattern },
+        { category: pattern },
+      ];
+    }
+
+    const status = req.query.status;
+
+    if (status === "active") {
+      filter.isActive = { $ne: false };
+    } else if (status === "inactive") {
+      filter.isActive = false;
+    }
+
+    // Optional inventory filter
+    if (req.query.stockStatus === "out") {
+      filter.$or = [
+        ...(filter.$or || []),
+      ];
+
+      filter.$expr = {
+        $lte: [{ $ifNull: ["$stock", 0] }, 0],
+      };
+    } else if (req.query.stockStatus === "low") {
+      filter.$expr = {
+        $and: [
+          { $gt: [{ $ifNull: ["$stock", 0] }, 0] },
+          {
+            $lte: [
+              { $ifNull: ["$stock", 0] },
+              { $ifNull: ["$lowStockThreshold", 5] },
+            ],
+          },
+        ],
+      };
+    }
+
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+
+      Product.countDocuments(filter),
+    ]);
+
+    // Older products may not contain stock fields yet.
+    const normalizedProducts = products.map((product) => ({
+      ...product,
+      stock: Number.isInteger(product.stock) ? product.stock : 0,
+      lowStockThreshold: Number.isInteger(product.lowStockThreshold)
+        ? product.lowStockThreshold
+        : 5,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      products: normalizedProducts,
+    });
+  } catch (error) {
+    console.error("Admin get products error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not retrieve products",
+    });
+  }
+};
+
+
+// ==========================================
+// CREATE PRODUCT
+// ==========================================
+
+const createAdminProduct = async (req, res) => {
+  try {
+    const { image, name, price, category } = req.body;
+
+    const stock =
+      req.body.stock === undefined || req.body.stock === ""
+        ? 0
+        : Number(req.body.stock);
+
+    const lowStockThreshold =
+      req.body.lowStockThreshold === undefined ||
+      req.body.lowStockThreshold === ""
+        ? 5
+        : Number(req.body.lowStockThreshold);
+
+    if (
+      typeof image !== "string" ||
+      !image.trim() ||
+      typeof name !== "string" ||
+      !name.trim() ||
+      typeof category !== "string" ||
+      !category.trim() ||
+      price === undefined ||
+      price === null ||
+      price === ""
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Image, name, price and category are required",
+      });
+    }
+
+    const productPrice = Number(price);
+
+    if (!Number.isFinite(productPrice) || productPrice < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid product price",
+      });
+    }
+
+    if (!Number.isSafeInteger(stock) || stock < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Stock must be a non-negative whole number",
+      });
+    }
+
+    if (
+      !Number.isSafeInteger(lowStockThreshold) ||
+      lowStockThreshold < 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Low stock threshold must be a non-negative whole number",
+      });
+    }
+
+    const product = await Product.create({
+      image: image.trim(),
+      name: name.trim(),
+      price: productPrice,
+      category: category.trim(),
+      stock,
+      lowStockThreshold,
+      isActive: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Product added successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Admin create product error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not add product",
+    });
+  }
+};
+
+
+
+// ==========================================
+// UPDATE PRODUCT
+// ==========================================
+
+const updateAdminProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    const updates = {};
+    const allowedFields = ["image", "name", "category"];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        if (
+          typeof req.body[field] !== "string" ||
+          !req.body[field].trim()
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `${field} cannot be empty`,
+          });
+        }
+
+        updates[field] = req.body[field].trim();
+      }
+    }
+
+    if (req.body.price !== undefined) {
+      const price = Number(req.body.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter a valid price",
+        });
+      }
+
+      updates.price = price;
+    }
+
+    if (req.body.stock !== undefined) {
+      const stock = Number(req.body.stock);
+
+      if (!Number.isSafeInteger(stock) || stock < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Stock must be a non-negative whole number",
+        });
+      }
+
+      updates.stock = stock;
+    }
+
+    if (req.body.lowStockThreshold !== undefined) {
+      const threshold = Number(req.body.lowStockThreshold);
+
+      if (!Number.isSafeInteger(threshold) || threshold < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Low stock threshold must be a non-negative whole number",
+        });
+      }
+
+      updates.lowStockThreshold = threshold;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No product details provided for update",
+      });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      }
+    );
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Product and inventory updated successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Admin update product error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not update product",
+    });
+  }
+};
+
+
+// ==========================================
+// ACTIVATE / DEACTIVATE PRODUCT
+// ==========================================
+const updateAdminProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isActive must be true or false",
+      });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      id,
+      { $set: { isActive } },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: isActive
+        ? "Product activated successfully"
+        : "Product deactivated successfully",
+      product,
+    });
+  } catch (error) {
+    console.error("Admin product status error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not update product status",
+    });
+  }
+};
+
+// ==========================================
+// GET INVENTORY STATS
+// ==========================================
+
+const getInventoryStats = async (req, res) => {
+  try {
+    const [totalProducts, summary] = await Promise.all([
+      Product.countDocuments({
+        isActive: { $ne: false },
+      }),
+
+      Product.aggregate([
+        {
+          $match: {
+            isActive: { $ne: false },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+
+            totalStock: {
+              $sum: { $ifNull: ["$stock", 0] },
+            },
+
+            lowStockProducts: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      {
+                        $gt: [
+                          { $ifNull: ["$stock", 0] },
+                          0,
+                        ],
+                      },
+                      {
+                        $lte: [
+                          { $ifNull: ["$stock", 0] },
+                          { $ifNull: ["$lowStockThreshold", 5] },
+                        ],
+                      },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+
+            outOfStockProducts: {
+              $sum: {
+                $cond: [
+                  {
+                    $lte: [
+                      { $ifNull: ["$stock", 0] },
+                      0,
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const inventory = summary[0] || {
+      totalStock: 0,
+      lowStockProducts: 0,
+      outOfStockProducts: 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      inventory: {
+        totalProducts,
+        totalStock: inventory.totalStock,
+        lowStockProducts: inventory.lowStockProducts,
+        outOfStockProducts: inventory.outOfStockProducts,
+      },
+    });
+  } catch (error) {
+    console.error("Inventory stats error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Could not load inventory statistics",
+    });
+  }
+};
+
 module.exports = {
   createWholesaler,
   getWholesalers,
@@ -769,4 +1219,9 @@ module.exports = {
   updateCustomerStatus,
   getAdminOrders,
   updateAdminOrderStatus,
+  getAdminProducts,
+  createAdminProduct,
+  updateAdminProduct,
+  updateAdminProductStatus,
+  getInventoryStats,
 };
