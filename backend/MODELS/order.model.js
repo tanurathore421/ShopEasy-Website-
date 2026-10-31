@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
@@ -61,10 +60,29 @@ const orderSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Refund status for the order.
+    refundStatus: {
+      type: String,
+      enum: ["NotRequired", "Pending", "Processed"],
+      default: "NotRequired",
+    },
+
+    // Razorpay refund ID if a refund has been processed.
+    razorpayRefundId: {
+      type: String,
+      default: null,
+    },
+
+    // Date when the refund was processed.
+    refundedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 orderSchema.index(
@@ -74,11 +92,10 @@ orderSchema.index(
     partialFilterExpression: {
       paymentRecordId: { $exists: true },
     },
-  }
+  },
 );
 
 module.exports = mongoose.model("Order", orderSchema);
-
 
 /* const mongoose = require("mongoose");
 

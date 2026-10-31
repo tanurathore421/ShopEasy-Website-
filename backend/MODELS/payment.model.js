@@ -101,6 +101,18 @@ const paymentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    
+    lateRefundId: {
+      type: String,
+      default: null,
+    },
+
+    // Set when a late refund is processed.
+    lateRefundedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

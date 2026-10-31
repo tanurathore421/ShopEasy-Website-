@@ -4,6 +4,9 @@ const mongoose = require("mongoose");
 const Auth = require("../MODELS/auth.model");
 const Product = require("../MODELS/product.model");
 const Order = require("../MODELS/order.model");
+const {
+  refundOnlineOrderIfNeeded,
+} = require("../SERVICES/orderRefund");
 
 // Escape special characters before using user input in a regular expression.
 const escapeRegex = (value) =>
@@ -698,6 +701,8 @@ const getAdminOrders = async (req, res) => {
 
 // Update the status of an order.
 
+
+
 const updateAdminOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -734,8 +739,106 @@ const updateAdminOrderStatus = async (req, res) => {
       });
     }
 
-    order.status = status;
-    await order.save();
+    if (order.status === "Cancelled" && status !== "Cancelled") {
+      return res.status(409).json({
+        success: false,
+        message: "A cancelled order cannot be reactivated.",
+      });
+    }
+
+    if (order.status === status) {
+      return res.json({
+        success: true,
+        message: "Order status is already updated",
+      });
+    }
+
+    if (status === "Cancelled") {
+      if (["Shipped", "Delivered"].includes(order.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot cancel an order that is ${order.status}`,
+        });
+      }
+
+      // Refund online payment before cancelling.
+      try {
+        await refundOnlineOrderIfNeeded(order);
+      } catch (refundError) {
+        console.error("Admin order refund error:", refundError);
+
+        return res.status(502).json({
+          success: false,
+          message:
+            "Refund could not be confirmed. Order was not cancelled.",
+        });
+      }
+
+      const cancelledOrder = await Order.findOneAndUpdate(
+        {
+          _id: id,
+          status: { $nin: ["Cancelled", "Shipped", "Delivered"] },
+        },
+        {
+          $set: { status: "Cancelled" },
+        },
+        { new: true }
+      );
+
+      if (!cancelledOrder) {
+        return res.status(409).json({
+          success: false,
+          message: "Order status changed. Refresh and try again.",
+        });
+      }
+
+      if (cancelledOrder.stockDeducted) {
+        const result = await Product.updateOne(
+          { _id: cancelledOrder.productId },
+          { $inc: { stock: cancelledOrder.quantity } }
+        );
+
+        if (result.matchedCount !== 1) {
+          return res.status(500).json({
+            success: false,
+            message:
+              "Order cancelled, but stock restoration needs manual review.",
+          });
+        }
+
+        await Order.updateOne(
+          {
+            _id: cancelledOrder._id,
+            status: "Cancelled",
+            stockDeducted: true,
+          },
+          {
+            $set: {
+              stockDeducted: false,
+              stockRestoredAt: new Date(),
+            },
+          }
+        );
+      }
+    } else {
+      const updated = await Order.findOneAndUpdate(
+        {
+          _id: id,
+          status: { $ne: "Cancelled" },
+        },
+        {
+          $set: { status },
+        },
+        { new: true }
+      );
+
+      if (!updated) {
+        return res.status(409).json({
+          success: false,
+          message: "Order status changed. Refresh and try again.",
+        });
+      }
+    }
 
     const updatedOrder = await Order.findById(id)
       .populate("userId", "name email phone")
@@ -748,7 +851,7 @@ const updateAdminOrderStatus = async (req, res) => {
       order: updatedOrder,
     });
   } catch (error) {
-    console.error("Admin update order error:", error.message);
+    console.error("Admin update order error:", error);
 
     return res.status(500).json({
       success: false,
