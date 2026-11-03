@@ -4,6 +4,9 @@ const Razorpay = require("razorpay");
 const Payment = require("../MODELS/payment.model");
 const Product = require("../MODELS/product.model");
 const Order = require("../MODELS/order.model");
+const {
+  createRazorpayRefund,
+} = require("./razorpayRefund");
 
 const CHECK_INTERVAL = 60 * 1000;
 const RETRY_MINUTES = 5;
@@ -237,6 +240,117 @@ async function processExpiredPayment(payment) {
   }
 }
 
+
+async function refundLateCapturedPayments() {
+  const records = await Payment.find({
+    status: { $in: ["Failed", "Expired"] },
+    stockReserved: false,
+    lateRefundId: null,
+  })
+    .sort({ updatedAt: 1 })
+    .limit(50);
+
+  for (const record of records) {
+    try {
+      const response = await getRazorpay().orders.fetchPayments(
+        record.razorpayOrderId
+      );
+
+      const captured = (response.items || []).find(
+        (item) =>
+          item.order_id === record.razorpayOrderId &&
+          item.status === "captured"
+      );
+
+      if (!captured) continue;
+
+      if (
+        captured.amount !== Math.round(record.totalAmount * 100) ||
+        captured.currency !== "INR"
+      ) {
+        console.error(
+          "Late payment amount mismatch; manual review required:",
+          record.razorpayOrderId
+        );
+        continue;
+      }
+
+      const locked = await Payment.findOneAndUpdate(
+        {
+          _id: record._id,
+          status: record.status,
+          stockReserved: false,
+          lateRefundId: null,
+        },
+        {
+          $set: { status: "Verifying" },
+        },
+        { new: true }
+      );
+
+      if (!locked) continue;
+
+      try {
+        const refund = await createRazorpayRefund({
+          paymentId: captured.id,
+          amountPaise: Math.round(locked.totalAmount * 100),
+          idempotencyKey: `late_payment_${locked._id}`,
+          notes: {
+            razorpayOrderId: locked.razorpayOrderId,
+            reason: "Payment captured after stock release",
+          },
+        });
+
+        await Payment.updateOne(
+          {
+            _id: locked._id,
+            status: "Verifying",
+            stockReserved: false,
+          },
+          {
+            $set: {
+              status: "Refunded",
+              razorpayPaymentId: captured.id,
+              lateRefundId: refund.id,
+              lateRefundedAt: new Date(),
+            },
+          }
+        );
+
+        console.log(
+          "Late Razorpay payment refunded:",
+          locked.razorpayOrderId,
+          refund.id
+        );
+      } catch (refundError) {
+        console.error(
+          "Late payment refund failed:",
+          locked.razorpayOrderId,
+          refundError.message
+        );
+
+        await Payment.updateOne(
+          {
+            _id: locked._id,
+            status: "Verifying",
+          },
+          {
+            $set: { status: record.status },
+          }
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Late payment check failed:",
+        record.razorpayOrderId,
+        error.message
+      );
+    }
+  }
+}
+
+
+
 async function cleanupExpiredPayments() {
   if (isRunning) return;
 
@@ -254,6 +368,7 @@ async function cleanupExpiredPayments() {
     for (const payment of expiredPayments) {
       await processExpiredPayment(payment);
     }
+    await refundLateCapturedPayments();
   } catch (error) {
     console.error("Payment cleanup error:", error.message);
   } finally {

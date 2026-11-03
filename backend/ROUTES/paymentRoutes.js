@@ -8,6 +8,9 @@ const jwt = require("jsonwebtoken");
 const Product = require("../MODELS/product.model");
 const Order = require("../MODELS/order.model");
 const Payment = require("../MODELS/payment.model");
+const {
+  createRazorpayRefund,
+} = require("../SERVICES/razorpayRefund");
 
 const router = express.Router();
 
@@ -378,8 +381,10 @@ router.post("/release-reservation", authenticate, async (req, res) => {
 });
 
 // Verify payment and create orders
+
 router.post("/verify-payment", authenticate, async (req, res) => {
   let lockedPayment = null;
+  let previousStatus = null;
 
   try {
     const {
@@ -418,11 +423,11 @@ router.post("/verify-payment", authenticate, async (req, res) => {
       });
     }
 
-    if (!paymentRecord.stockReserved) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Stock reservation is no longer active. Contact support to check your payment.",
+    if (paymentRecord.status === "Refunded") {
+      return res.json({
+        success: true,
+        paymentRefunded: true,
+        message: "Late payment was already refunded",
       });
     }
 
@@ -445,13 +450,15 @@ router.post("/verify-payment", authenticate, async (req, res) => {
       });
     }
 
+    // Always confirm directly with Razorpay
     const razorpayPayment = await razorpay.payments.fetch(
       razorpay_payment_id
     );
 
     if (
       razorpayPayment.order_id !== razorpay_order_id ||
-      razorpayPayment.amount !== Math.round(paymentRecord.totalAmount * 100) ||
+      razorpayPayment.amount !==
+        Math.round(paymentRecord.totalAmount * 100) ||
       razorpayPayment.currency !== "INR"
     ) {
       return res.status(400).json({
@@ -463,11 +470,93 @@ router.post("/verify-payment", authenticate, async (req, res) => {
     if (razorpayPayment.status !== "captured") {
       return res.status(409).json({
         success: false,
-        message: "Payment has not been captured yet",
+        message: "Payment is not captured yet",
       });
     }
 
-    // Lock payment to prevent concurrent verification
+    // If stock was already released, refund the late payment.
+    if (!paymentRecord.stockReserved) {
+      if (!["Failed", "Expired"].includes(paymentRecord.status)) {
+        return res.status(409).json({
+          success: false,
+          message: "Payment reservation is being processed. Please retry.",
+        });
+      }
+
+      previousStatus = paymentRecord.status;
+
+      lockedPayment = await Payment.findOneAndUpdate(
+        {
+          _id: paymentRecord._id,
+          userId: req.userId,
+          status: previousStatus,
+          stockReserved: false,
+        },
+        {
+          $set: { status: "Verifying" },
+        },
+        { new: true }
+      );
+
+      if (!lockedPayment) {
+        const latest = await Payment.findById(paymentRecord._id);
+
+        if (latest?.status === "Refunded") {
+          return res.json({
+            success: true,
+            paymentRefunded: true,
+            message: "Late payment was already refunded",
+          });
+        }
+
+        return res.status(409).json({
+          success: false,
+          message: "Payment is already being processed",
+        });
+      }
+
+      const refund = await createRazorpayRefund({
+        paymentId: razorpay_payment_id,
+        amountPaise: Math.round(
+          Number(lockedPayment.totalAmount) * 100
+        ),
+        idempotencyKey: `late_payment_${lockedPayment._id}`,
+        notes: {
+          razorpayOrderId: lockedPayment.razorpayOrderId,
+          reason: "Stock reservation expired",
+        },
+      });
+
+      await Payment.updateOne(
+        {
+          _id: lockedPayment._id,
+          status: "Verifying",
+          stockReserved: false,
+        },
+        {
+          $set: {
+            status: "Refunded",
+            razorpayPaymentId: razorpay_payment_id,
+            razorpaySignature: razorpay_signature,
+            lateRefundId: refund.id,
+            lateRefundedAt: new Date(),
+          },
+        }
+      );
+
+      lockedPayment = null;
+
+      return res.json({
+        success: true,
+        paymentRefunded: true,
+        message:
+          "Payment was captured after stock release. Full refund initiated; no order was created.",
+      });
+    }
+
+    // Normal payment verification: stock was reserved already.
+    previousStatus = "Created";
+
     lockedPayment = await Payment.findOneAndUpdate(
       {
         _id: paymentRecord._id,
@@ -497,8 +586,7 @@ router.post("/verify-payment", authenticate, async (req, res) => {
       });
     }
 
-    // Stock was already deducted during reservation.
-    // Do not deduct it again here.
+    // Stock was deducted during reservation. Never deduct again here.
     for (const item of lockedPayment.items) {
       await Order.updateOne(
         {
@@ -529,6 +617,7 @@ router.post("/verify-payment", authenticate, async (req, res) => {
     lockedPayment.reservationExpiresAt = null;
 
     await lockedPayment.save();
+    lockedPayment = null;
 
     return res.json({
       success: true,
@@ -537,15 +626,14 @@ router.post("/verify-payment", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Payment verification error:", error);
 
-    // Allow a safe retry. Existing upserted orders are duplicate-protected.
-    if (lockedPayment) {
+    if (lockedPayment && previousStatus) {
       await Payment.updateOne(
         {
           _id: lockedPayment._id,
           status: "Verifying",
         },
         {
-          $set: { status: "Created" },
+          $set: { status: previousStatus },
         }
       );
     }
@@ -553,10 +641,11 @@ router.post("/verify-payment", authenticate, async (req, res) => {
     return res.status(500).json({
       success: false,
       message:
-        "Payment verification failed. Check Razorpay Dashboard before retrying.",
+        "Payment verification or refund failed. Check Razorpay Dashboard before retrying.",
     });
   }
 });
+
 
 module.exports = router;
 
