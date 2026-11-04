@@ -27,6 +27,12 @@ const {
   getInventoryStats,
 } = require("../CONTROLLERS/admin.controller");
 
+const {
+  getSupplierProducts,
+  approveSupplierProduct,
+  rejectSupplierProduct,
+} = require("../CONTROLLERS/wholesalerProduct.controller");
+
 
 
 // All admin APIs require authentication and admin authorization.
@@ -91,6 +97,24 @@ router.put(
 router.patch(
   "/products/:id/status",
   updateAdminProductStatus
+);
+
+
+
+// ==========================================
+// WHOLESALER PRODUCT APPROVAL
+// ==========================================
+
+router.get("/supplier-products", getSupplierProducts);
+
+router.patch(
+  "/supplier-products/:id/approve",
+  approveSupplierProduct
+);
+
+router.patch(
+  "/supplier-products/:id/reject",
+  rejectSupplierProduct
 );
 
 module.exports = router;

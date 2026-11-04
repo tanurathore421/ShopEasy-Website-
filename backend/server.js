@@ -15,6 +15,7 @@ const orderRoutes = require("./ROUTES/orderRoutes");
 const paymentRoutes = require("./ROUTES/paymentRoutes");
 const helpChatRoutes = require("./ROUTES/helpChatRoutes");
 const adminRoutes = require("./ROUTES/admin.routes");
+const wholesalerRoutes = require("./ROUTES/wholesalerRoutes");
 
 const {
   startPaymentReservationCleanup,
@@ -53,6 +54,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/help-chat", helpChatRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/wholesaler", wholesalerRoutes);
 
 // Start server only after MongoDB connects successfully.
 connectDB()

@@ -23,23 +23,37 @@ import Auth from "./pages/AUTH/auth";
 import Checkout from "./pages/CHECKOUT/checkout";
 import Help from "./pages/HELP/help";
 
+// Wholesaler Dashboard
+import WholesalerDashboard from "./pages/WHOLESALER/WholesalerDashboard";
+
 function AppLayout() {
   const { pathname } = useLocation();
 
-  // The admin area has its own sidebar and layout.
   const isAdminPage = pathname.startsWith("/admin");
+  const isWholesalerPage = pathname.startsWith("/wholesaler");
+
+  const hideMainLayout = isAdminPage || isWholesalerPage;
 
   useEffect(() => {
-  document.body.classList.toggle("admin-route-active", isAdminPage);
+    document.body.classList.toggle(
+      "admin-route-active",
+      isAdminPage
+    );
 
-  return () => {
-    document.body.classList.remove("admin-route-active");
-  };
-}, [isAdminPage]);
+    document.body.classList.toggle(
+      "wholesaler-route-active",
+      isWholesalerPage
+    );
+
+    return () => {
+      document.body.classList.remove("admin-route-active");
+      document.body.classList.remove("wholesaler-route-active");
+    };
+  }, [isAdminPage, isWholesalerPage]);
 
   return (
     <>
-      {!isAdminPage && <Navbar />}
+      {!hideMainLayout && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -52,11 +66,20 @@ function AppLayout() {
         <Route path="/help" element={<Help />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/orders" element={<Orders />} />
+
+        {/* Admin Dashboard */}
         <Route path="/admin/*" element={<AdminDashboard />} />
+
+        {/* Wholesaler Dashboard */}
+        <Route
+          path="/wholesaler/*"
+          element={<WholesalerDashboard />}
+        />
+
         <Route path="/auth" element={<Auth />} />
       </Routes>
 
-      {!isAdminPage && <Footer />}
+      {!hideMainLayout && <Footer />}
     </>
   );
 }
