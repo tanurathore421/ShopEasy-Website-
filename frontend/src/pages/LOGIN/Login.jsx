@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import "./Login.css";
@@ -10,6 +11,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState("");
   const [captchaImage, setCaptchaImage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Get CAPTCHA
   const getCaptcha = async () => {
@@ -42,6 +44,8 @@ function Login() {
     }
 
     try {
+      setLoading(true);
+
       const response = await axios.post(
         "http://localhost:3000/api/auth/login",
         {
@@ -55,22 +59,45 @@ function Login() {
       );
 
       const token = response.data.token;
+      const user = response.data.user;
 
-      if (!token) {
-        alert("Token not received from backend");
+      if (!token || !user) {
+        alert("Invalid login response from server");
         return;
       }
 
-      // Save token
-      localStorage.setItem("token", token);
+      if (!user.role) {
+        console.error("USER ROLE MISSING:", user);
+        alert("User role not received. Please contact administrator.");
+        return;
+      }
 
-      // Tell Navbar user logged in
+      // Normalize role
+      const role = String(user.role).trim().toLowerCase();
+
+      // Save authentication details
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", role);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Notify Navbar
       window.dispatchEvent(new Event("login"));
+
+      console.log("LOGIN SUCCESS");
+      console.log("USER:", user);
+      console.log("ROLE:", role);
 
       alert("Login successful");
 
-      // Go to profile
-      navigate("/profile");
+      // Redirect based on role
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
+      } else if (role === "wholesaler") {
+        navigate("/wholesaler", { replace: true });
+      } else {
+        navigate("/profile", { replace: true });
+      }
+
     } catch (error) {
       console.error("LOGIN ERROR:", error);
       console.error("SERVER RESPONSE:", error.response?.data);
@@ -79,8 +106,10 @@ function Login() {
         error.response?.data?.message || "Login failed"
       );
 
-      // Refresh CAPTCHA
       getCaptcha();
+
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,6 +138,7 @@ function Login() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -121,6 +151,7 @@ function Login() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
@@ -143,9 +174,8 @@ function Login() {
               type="text"
               placeholder="Enter CAPTCHA"
               value={captcha}
-              onChange={(e) =>
-                setCaptcha(e.target.value)
-              }
+              onChange={(e) => setCaptcha(e.target.value)}
+              required
             />
 
           </div>
@@ -164,8 +194,8 @@ function Login() {
 
           </div>
 
-          <button type="submit">
-            Login
+          <button type="submit" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
           </button>
 
         </form>

@@ -1,10 +1,10 @@
-
 import "./App.css";
 import {
   BrowserRouter,
   Routes,
   Route,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 import { useEffect } from "react";
 
@@ -22,9 +22,25 @@ import AdminDashboard from "./pages/ADMIN/admin";
 import Auth from "./pages/AUTH/auth";
 import Checkout from "./pages/CHECKOUT/checkout";
 import Help from "./pages/HELP/help";
+import HelpChat from "./components/HELPCHAT/helpChat";
 
 // Wholesaler Dashboard
 import WholesalerDashboard from "./pages/WHOLESALER/WholesalerDashboard";
+
+const ProtectedRoute = ({ children, allowedRole }) => {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role !== allowedRole) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
 
 function AppLayout() {
   const { pathname } = useLocation();
@@ -35,15 +51,9 @@ function AppLayout() {
   const hideMainLayout = isAdminPage || isWholesalerPage;
 
   useEffect(() => {
-    document.body.classList.toggle(
-      "admin-route-active",
-      isAdminPage
-    );
+    document.body.classList.toggle("admin-route-active", isAdminPage);
 
-    document.body.classList.toggle(
-      "wholesaler-route-active",
-      isWholesalerPage
-    );
+    document.body.classList.toggle("wholesaler-route-active", isWholesalerPage);
 
     return () => {
       document.body.classList.remove("admin-route-active");
@@ -68,18 +78,30 @@ function AppLayout() {
         <Route path="/orders" element={<Orders />} />
 
         {/* Admin Dashboard */}
-        <Route path="/admin/*" element={<AdminDashboard />} />
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Wholesaler Dashboard */}
         <Route
           path="/wholesaler/*"
-          element={<WholesalerDashboard />}
+          element={
+            <ProtectedRoute allowedRole="wholesaler">
+              <WholesalerDashboard />
+            </ProtectedRoute>
+          }
         />
 
         <Route path="/auth" element={<Auth />} />
       </Routes>
 
       {!hideMainLayout && <Footer />}
+      <HelpChat />
     </>
   );
 }
