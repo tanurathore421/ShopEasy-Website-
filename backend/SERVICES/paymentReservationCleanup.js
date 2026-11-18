@@ -60,7 +60,8 @@ async function processExpiredPayment(payment) {
     {
       $set: { status: "Releasing" },
     },
-    { new: true }
+      { returnDocument: "after" }
+   /*  { new: true } */
   );
 
   if (!lockedPayment) return;
@@ -285,7 +286,8 @@ async function refundLateCapturedPayments() {
         {
           $set: { status: "Verifying" },
         },
-        { new: true }
+          { returnDocument: "after" }
+      /*   { new: true } */
       );
 
       if (!locked) continue;

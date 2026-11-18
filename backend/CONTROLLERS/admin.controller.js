@@ -343,7 +343,8 @@ const updateWholesalerStatus = async (req, res) => {
     const wholesaler = await Auth.findOneAndUpdate(
       { _id: id, role: "wholesaler" },
       { $set: { isActive } },
-      { new: true, runValidators: true }
+        { returnDocument: "after" }
+      /* { new: true, runValidators: true } */
     ).select("-password");
 
     if (!wholesaler) {
@@ -536,7 +537,8 @@ const updateCustomerStatus = async (req, res) => {
         ],
       },
       { $set: { isActive } },
-      { new: true, runValidators: true }
+        { returnDocument: "after" }
+     /*  { new: true, runValidators: true } */
     ).select("-password");
 
     if (!customer) {
@@ -782,7 +784,8 @@ const updateAdminOrderStatus = async (req, res) => {
         {
           $set: { status: "Cancelled" },
         },
-        { new: true }
+          { returnDocument: "after" }
+        /* { new: true } */
       );
 
       if (!cancelledOrder) {
@@ -829,7 +832,8 @@ const updateAdminOrderStatus = async (req, res) => {
         {
           $set: { status },
         },
-        { new: true }
+          { returnDocument: "after" }
+        /* { new: true } */
       );
 
       if (!updated) {

@@ -445,7 +445,8 @@ const cancelOrder = async (req, res) => {
       {
         $set: { status: "Cancelled" },
       },
-      { new: true }
+        { returnDocument: "after" }
+     /*  { new: true } */
     );
 
     if (!cancelledOrder) {

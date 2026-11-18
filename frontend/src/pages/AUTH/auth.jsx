@@ -43,7 +43,7 @@ function Auth({ onClose, onLoginSuccess }) {
         "http://localhost:3000/api/captcha/captcha",
         {
           withCredentials: true,
-        }
+        },
       );
 
       setCaptchaImage(response.data.captcha);
@@ -60,7 +60,7 @@ function Auth({ onClose, onLoginSuccess }) {
   // =========================
   // LOGIN
   // =========================
-  const handleLogin = async (e) => {
+  /*  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!email || !password || !captcha) {
@@ -108,6 +108,65 @@ function Auth({ onClose, onLoginSuccess }) {
       getCaptcha();
     }
   };
+  
+ */
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    if (!email || !password || !captcha) {
+      alert("Please fill in all fields");
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        "http://localhost:3000/api/auth/login",
+        {
+          email,
+          password,
+          captcha,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      const token = response.data.token;
+      const user = response.data.user;
+
+      if (!token || !user) {
+        alert("Login details not received from backend");
+        return;
+      }
+
+      // Save login details
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", user.role);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      alert("Login successful!");
+
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+
+      // Redirect according to user role
+      if (user.role === "admin") {
+        navigate("/admin", { replace: true });
+      } else if (user.role === "wholesaler") {
+        navigate("/wholesaler", { replace: true });
+      } else {
+        navigate("/profile", { replace: true });
+      }
+    } catch (error) {
+      console.error("LOGIN ERROR:", error);
+
+      alert(error.response?.data?.message || "Login failed");
+
+      getCaptcha();
+    }
+  };
 
   // =========================
   // REGISTER
@@ -115,12 +174,7 @@ function Auth({ onClose, onLoginSuccess }) {
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    if (
-      !name ||
-      !registerEmail ||
-      !registerPassword ||
-      !confirmPassword
-    ) {
+    if (!name || !registerEmail || !registerPassword || !confirmPassword) {
       alert("Please fill in all required fields");
       return;
     }
@@ -139,13 +193,10 @@ function Auth({ onClose, onLoginSuccess }) {
           password: registerPassword,
           phone,
           address,
-        }
+        },
       );
 
-      alert(
-        response.data.message ||
-          "Registration successful!"
-      );
+      alert(response.data.message || "Registration successful!");
 
       // Clear register form
       setName("");
@@ -163,10 +214,7 @@ function Auth({ onClose, onLoginSuccess }) {
     } catch (error) {
       console.error("REGISTER ERROR:", error);
 
-      alert(
-        error.response?.data?.message ||
-          "Registration failed"
-      );
+      alert(error.response?.data?.message || "Registration failed");
     }
   };
 
@@ -181,7 +229,6 @@ function Auth({ onClose, onLoginSuccess }) {
       }}
     >
       <div className="auth-box">
-
         {/* Close button */}
         <button
           type="button"
@@ -201,11 +248,7 @@ function Auth({ onClose, onLoginSuccess }) {
         <div className="auth-tabs">
           <button
             type="button"
-            className={
-              activeTab === "login"
-                ? "auth-tab active"
-                : "auth-tab"
-            }
+            className={activeTab === "login" ? "auth-tab active" : "auth-tab"}
             onClick={() => setActiveTab("login")}
           >
             Login
@@ -214,9 +257,7 @@ function Auth({ onClose, onLoginSuccess }) {
           <button
             type="button"
             className={
-              activeTab === "register"
-                ? "auth-tab active"
-                : "auth-tab"
+              activeTab === "register" ? "auth-tab active" : "auth-tab"
             }
             onClick={() => setActiveTab("register")}
           >
@@ -231,12 +272,9 @@ function Auth({ onClose, onLoginSuccess }) {
           <div className="auth-form-container">
             <h2>Welcome Back!</h2>
 
-            <p className="auth-subtitle">
-              Login to your account
-            </p>
+            <p className="auth-subtitle">Login to your account</p>
 
             <form onSubmit={handleLogin}>
-
               <div className="auth-input-group">
                 <label>Email</label>
 
@@ -244,9 +282,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="email"
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
 
@@ -257,17 +293,14 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="password"
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
+                  onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
 
               {/* CAPTCHA */}
               <div className="captcha-group">
-
                 <div className="captcha-box">
-                  {captchaImage}
+                  <span>{captchaImage}</span>
                 </div>
 
                 <button
@@ -282,42 +315,27 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="text"
                   placeholder="CAPTCHA"
                   value={captcha}
-                  onChange={(e) =>
-                    setCaptcha(e.target.value)
-                  }
+                  onChange={(e) => setCaptcha(e.target.value)}
                 />
               </div>
 
               <div className="auth-options">
-
                 <label>
                   <input type="checkbox" />
                   Remember me
                 </label>
 
-                <a href="/forgot-password">
-                  Forgot Password?
-                </a>
-
+                <a href="/forgot-password">Forgot Password?</a>
               </div>
 
-              <button
-                type="submit"
-                className="auth-submit"
-              >
+              <button type="submit" className="auth-submit">
                 Login
               </button>
             </form>
 
             <p className="auth-switch">
               Don't have an account?
-
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveTab("register")
-                }
-              >
+              <button type="button" onClick={() => setActiveTab("register")}>
                 Sign Up
               </button>
             </p>
@@ -329,7 +347,6 @@ function Auth({ onClose, onLoginSuccess }) {
         ========================= */}
         {activeTab === "register" && (
           <div className="auth-form-container">
-
             <h2>Create Account</h2>
 
             <p className="auth-subtitle">
@@ -337,7 +354,6 @@ function Auth({ onClose, onLoginSuccess }) {
             </p>
 
             <form onSubmit={handleRegister}>
-
               <div className="auth-input-group">
                 <label>Full Name</label>
 
@@ -345,9 +361,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="text"
                   placeholder="Enter your full name"
                   value={name}
-                  onChange={(e) =>
-                    setName(e.target.value)
-                  }
+                  onChange={(e) => setName(e.target.value)}
                 />
               </div>
 
@@ -358,9 +372,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="email"
                   placeholder="Enter your email"
                   value={registerEmail}
-                  onChange={(e) =>
-                    setRegisterEmail(e.target.value)
-                  }
+                  onChange={(e) => setRegisterEmail(e.target.value)}
                 />
               </div>
 
@@ -371,9 +383,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="password"
                   placeholder="Create a password"
                   value={registerPassword}
-                  onChange={(e) =>
-                    setRegisterPassword(e.target.value)
-                  }
+                  onChange={(e) => setRegisterPassword(e.target.value)}
                 />
               </div>
 
@@ -384,9 +394,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="password"
                   placeholder="Confirm your password"
                   value={confirmPassword}
-                  onChange={(e) =>
-                    setConfirmPassword(e.target.value)
-                  }
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                 />
               </div>
 
@@ -397,9 +405,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="tel"
                   placeholder="Enter your phone number"
                   value={phone}
-                  onChange={(e) =>
-                    setPhone(e.target.value)
-                  }
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
 
@@ -410,45 +416,28 @@ function Auth({ onClose, onLoginSuccess }) {
                   type="text"
                   placeholder="Enter your address"
                   value={address}
-                  onChange={(e) =>
-                    setAddress(e.target.value)
-                  }
+                  onChange={(e) => setAddress(e.target.value)}
                 />
               </div>
 
               <label className="terms">
-                <input
-                  type="checkbox"
-                  required
-                />
-                I agree to the Terms & Conditions
+                <input type="checkbox" required />I agree to the Terms &
+                Conditions
               </label>
 
-              <button
-                type="submit"
-                className="auth-submit"
-              >
+              <button type="submit" className="auth-submit">
                 Create Account
               </button>
-
             </form>
 
             <p className="auth-switch">
               Already have an account?
-
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveTab("login")
-                }
-              >
+              <button type="button" onClick={() => setActiveTab("login")}>
                 Login
               </button>
             </p>
-
           </div>
         )}
-
       </div>
     </div>
   );

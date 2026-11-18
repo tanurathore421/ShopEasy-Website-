@@ -89,7 +89,8 @@ async function reserveStock(items) {
       {
         $inc: { stock: -item.quantity },
       },
-      { new: true }
+        { returnDocument: "after" }
+     /*  { new: true } */
     );
 
     if (!product) {
@@ -348,7 +349,8 @@ router.post("/release-reservation", authenticate, async (req, res) => {
       {
         $set: { status: "Releasing" },
       },
-      { new: true }
+        { returnDocument: "after" }
+     /*  { new: true } */
     );
 
     if (!lockedPayment) {
@@ -495,7 +497,8 @@ router.post("/verify-payment", authenticate, async (req, res) => {
         {
           $set: { status: "Verifying" },
         },
-        { new: true }
+          { returnDocument: "after" }
+      /*   { new: true } */
       );
 
       if (!lockedPayment) {
@@ -567,7 +570,8 @@ router.post("/verify-payment", authenticate, async (req, res) => {
       {
         $set: { status: "Verifying" },
       },
-      { new: true }
+        { returnDocument: "after" }
+     /*  { new: true } */
     );
 
     if (!lockedPayment) {

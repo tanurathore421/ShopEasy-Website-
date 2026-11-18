@@ -27,7 +27,7 @@ import HelpChat from "./components/HELPCHAT/helpChat";
 // Wholesaler Dashboard
 import WholesalerDashboard from "./pages/WHOLESALER/WholesalerDashboard";
 
-const ProtectedRoute = ({ children, allowedRole }) => {
+ const ProtectedRoute = ({ children, allowedRole }) => {
   const token = localStorage.getItem("token");
   const role = localStorage.getItem("role");
 
@@ -40,7 +40,42 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   }
 
   return children;
-};
+}; 
+/* const ProtectedRoute = ({ children, allowedRole }) => {
+  const token = localStorage.getItem("token");
+
+  let role = localStorage.getItem("role");
+
+  // User data se role fallback
+  if (!role) {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      role = user.role;
+    } catch (error) {
+      console.error("USER DATA ERROR:", error);
+    }
+  }
+
+  // Normalize role
+  role = String(role || "").trim().toLowerCase();
+  allowedRole = String(allowedRole || "").trim().toLowerCase();
+
+  console.log("PROTECTED ROUTE CHECK:", {
+    tokenExists: !!token,
+    userRole: role,
+    allowedRole,
+  });
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (role !== allowedRole) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}; */
 
 function AppLayout() {
   const { pathname } = useLocation();

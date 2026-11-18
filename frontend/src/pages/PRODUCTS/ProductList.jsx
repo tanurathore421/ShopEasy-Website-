@@ -2,405 +2,217 @@
 import "./ProductList.css";
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 function ProductList() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   const API_URL = "http://localhost:3000/api";
 
+  // Read search and category from URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+
+    setSearch(params.get("search") || "");
+    setSelectedCategory(params.get("category") || "");
+  }, [location.search]);
+
+  // Get user ID from JWT
   const getUserIdFromToken = (token) => {
     try {
-      const payload = JSON.parse(
-        atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
-      );
+      const payload = JSON.parse(atob(token.split(".")[1]));
       return payload.userId;
-    } catch {
+    } catch (error) {
       return null;
     }
   };
 
-  const getProducts = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/products/all`);
-      setProducts(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data.products || []
-      );
-    } catch (error) {
-      console.error("GET PRODUCTS ERROR:", error);
-      alert("Unable to load products");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Fetch all products
   useEffect(() => {
-    getProducts();
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+
+        const response = await axios.get(
+          `${API_URL}/products/all`
+        );
+
+        const productData = Array.isArray(response.data)
+          ? response.data
+          : response.data.products || [];
+
+        setProducts(productData);
+      } catch (error) {
+        console.error("Products fetch error:", error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
   }, []);
 
-  const checkLogin = () => {
+  // Filter products by search and category
+  const filteredProducts = products.filter((product) => {
+    const searchValue = search.toLowerCase().trim();
+
+    const productName = product.name?.toLowerCase() || "";
+    const productCategory = product.category?.toLowerCase() || "";
+    const productPrice = String(product.price || "");
+
+    const matchesSearch =
+      !searchValue ||
+      productName.includes(searchValue) ||
+      productCategory.includes(searchValue) ||
+      productPrice.includes(searchValue);
+
+    const matchesCategory =
+      !selectedCategory ||
+      productCategory === selectedCategory.toLowerCase();
+
+    return matchesSearch && matchesCategory;
+  });
+
+  // Add to Cart
+  const addToCart = (product) => {
     const token = localStorage.getItem("token");
 
     if (!token) {
       alert("Please login first");
       navigate("/auth");
-      return null;
+      return;
     }
 
     const userId = getUserIdFromToken(token);
 
     if (!userId) {
       alert("Invalid login session. Please login again.");
-      localStorage.removeItem("token");
       navigate("/auth");
-      return null;
+      return;
     }
 
-    return { token, userId };
-  };
+    const cartKey = `cart_${userId}`;
+    let cart = JSON.parse(localStorage.getItem(cartKey)) || [];
 
-  // Add product to the logged-in user's cart
-  const addToCart = (product) => {
-    const user = checkLogin();
-    if (!user) return;
+    const existingProduct = cart.find(
+      (item) => item._id === product._id
+    );
 
-    const cartKey = `cart_${user.userId}`;
-
-    try {
-      const existingCart = JSON.parse(
-        localStorage.getItem(cartKey) || "[]"
-      );
-
-      const existingProduct = existingCart.find(
-        (item) => item._id === product._id
-      );
-
-      const updatedCart = existingProduct
-        ? existingCart.map((item) =>
-            item._id === product._id
-              ? { ...item, quantity: (item.quantity || 0) + 1 }
-              : item
-          )
-        : [...existingCart, { ...product, quantity: 1 }];
-
-      localStorage.setItem(cartKey, JSON.stringify(updatedCart));
-
-      alert("Product added to cart!");
-      navigate("/cart");
-    } catch (error) {
-      console.error("ADD TO CART ERROR:", error);
-      alert("Unable to update cart");
-    }
-  };
-
-  // Buy Now: save a one-product checkout cart, then open checkout
-  const handleBuy = (product) => {
-    const user = checkLogin();
-    if (!user) return;
-
-    const buyNowKey = `buynow_${user.userId}`;
-
-    const buyNowCart = [
-      {
+    if (existingProduct) {
+      existingProduct.quantity += 1;
+    } else {
+      cart.push({
         ...product,
         quantity: 1,
-      },
-    ];
-
-    localStorage.setItem(buyNowKey, JSON.stringify(buyNowCart));
-
-    // Tell Checkout.jsx to use the Buy Now cart
-    navigate("/checkout", {
-      state: { mode: "buyNow" },
-    });
-  };
-
-  if (loading) {
-    return <h2>Loading products...</h2>;
-  }
-
-  return (
-    <div className="product-page">
-      <h1>Our Products</h1>
-
-      <div className="product-container">
-        {products.map((product) => (
-          <div className="product-card" key={product._id}>
-            <img
-              src={product.image}
-              alt={product.name}
-              className="product-image"
-            />
-
-            <h2>{product.name}</h2>
-
-            <p className="price">₹ {product.price}</p>
-
-            <button
-              className="details-btn"
-              onClick={() => handleBuy(product)}
-            >
-              Buy Now
-            </button>
-
-            <button
-              className="cart-btn"
-              onClick={() => addToCart(product)}
-            >
-              Add to Cart
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default ProductList;
-
-/* import "./ProductList.css";
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-
-function ProductList() {
-  const navigate = useNavigate();
-
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // =========================
-  // GET PRODUCTS
-  // =========================
-  const getProducts = async () => {
-    try {
-      const response = await axios.get(
-        "http://localhost:3000/api/products/all"
-      );
-
-      setProducts(response.data);
-    } catch (error) {
-      console.log("GET PRODUCTS ERROR:", error);
-      alert("Unable to load products");
-    } finally {
-      setLoading(false);
+      });
     }
+
+    localStorage.setItem(cartKey, JSON.stringify(cart));
+
+    alert("Product added to cart successfully!");
   };
 
-  useEffect(() => {
-    getProducts();
-  }, []);
-
-  // =========================
-  // CHECK LOGIN
-  // =========================
-  const checkLogin = () => {
+  // Buy Now
+  const buyNow = (product) => {
     const token = localStorage.getItem("token");
 
     if (!token) {
       alert("Please login first");
       navigate("/auth");
-      return false;
-    }
-  
-
-    return true;
-  };
-
-  // =========================
-  // ADD TO CART
-  // =========================
-const addToCart = (product) => {
-  const token = localStorage.getItem("token");
-
-  if (!token) {
-    alert("Please login first");
-    navigate("/auth");
-    return;
-  }
-
-  // Get user ID from JWT
-  let userId;
-
-  try {
-    const payload = JSON.parse(
-      atob(token.split(".")[1])
-    );
-
-    userId = payload.userId;
-  } catch (error) {
-    console.error("TOKEN ERROR:", error);
-    alert("Invalid login session");
-    localStorage.removeItem("token");
-    navigate("/auth");
-    return;
-  }
-
-  if (!userId) {
-    alert("User ID not found");
-    return;
-  }
-
-  // IMPORTANT:
-  // Use the SAME key as Cart.jsx
-  const cartKey = `cart_${userId}`;
-
-  const existingCart =
-    JSON.parse(localStorage.getItem(cartKey) || "[]");
-
-  const existingProduct = existingCart.find(
-    (item) => item._id === product._id
-  );
-
-  let updatedCart;
-
-  if (existingProduct) {
-    updatedCart = existingCart.map((item) =>
-      item._id === product._id
-        ? {
-            ...item,
-            quantity: (item.quantity || 0) + 1,
-          }
-        : item
-    );
-  } else {
-    updatedCart = [
-      ...existingCart,
-      {
-        ...product,
-        quantity: 1,
-      },
-    ];
-  }
-
-  localStorage.setItem(
-    cartKey,
-    JSON.stringify(updatedCart)
-  );
-
-  console.log("Cart saved:", updatedCart);
-  console.log("Cart key:", cartKey);
-
-  alert("Product added to cart!");
-
-  navigate("/cart");
-};
-
-  // =========================
-  // BUY NOW
-  // =========================
-  const handleBuy = async (product) => {
-    // Check login first
-    if (!checkLogin()) {
       return;
     }
 
-    try {
-      const token = localStorage.getItem("token");
+    const userId = getUserIdFromToken(token);
 
-      const response = await axios.post(
-        "http://localhost:3000/api/orders/orders",
-        {
-          productId: product._id,
-          quantity: 1,
-          price: product.price,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.status === 200) {
-        alert(response.data.message);
-        navigate("/orders");
-      }
-
-      if (response.status === 201) {
-        alert("Order placed successfully");
-        navigate("/orders");
-      }
-    } catch (err) {
-      console.error(
-        "Error placing order:",
-        err.response?.status,
-        err.response?.data || err.message
-      );
-
-      if (err.response?.status === 401) {
-        alert(
-          "Your login session has expired. Please login again."
-        );
-
-        localStorage.removeItem("token");
-
-        navigate("/auth");
-      } else {
-        alert("Failed to place order");
-      }
+    if (!userId) {
+      alert("Invalid login session. Please login again.");
+      navigate("/auth");
+      return;
     }
+
+    const buyNowKey = `buynow_${userId}`;
+
+    const buyNowProduct = {
+      ...product,
+      quantity: 1,
+    };
+
+    localStorage.setItem(
+      buyNowKey,
+      JSON.stringify([buyNowProduct])
+    );
+
+    navigate("/checkout", {
+      state: { mode: "buyNow" },
+    });
   };
 
-  // =========================
-  // LOADING
-  // =========================
-  if (loading) {
-    return <h2>Loading products...</h2>;
-  }
-
-  // =========================
-  // UI
-  // =========================
   return (
     <div className="product-page">
-      <h1>Our Products</h1>
+      <div className="product-heading">
+        <h2>
+          {selectedCategory
+            ? `${selectedCategory} Products`
+            : search
+            ? `Search Results: ${search}`
+            : "All Products"}
+        </h2>
 
-      <div className="product-container">
-        {products.map((product) => (
-          <div
-            className="product-card"
-            key={product._id}
+        {(selectedCategory || search) && (
+          <button
+            onClick={() => navigate("/products")}
+            className="clear-filter-btn"
           >
-            <img
-              src={product.image}
-              alt={product.name}
-              className="product-image"
-            />
-
-            <h2>{product.name}</h2>
-
-            <p className="price">
-              ₹ {product.price}
-            </p>
-
-            <button
-              className="details-btn"
-              onClick={() => handleBuy(product)}
-            >
-              Buy Now
-            </button>
-
-            <button
-              className="cart-btn"
-              onClick={() => addToCart(product)}
-            >
-              Add to Cart
-            </button>
-          </div>
-        ))}
+            Show All Products
+          </button>
+        )}
       </div>
+
+      {loading ? (
+        <h3>Loading products...</h3>
+      ) : filteredProducts.length === 0 ? (
+        <h3>No products found.</h3>
+      ) : (
+        <div className="product-container">
+          {filteredProducts.map((product) => (
+            <div className="product-card" key={product._id}>
+              <img
+                src={product.image}
+                alt={product.name}
+                onError={(e) => {
+                  e.target.src =
+                    "https://via.placeholder.com/250?text=No+Image";
+                }}
+              />
+
+              <h3>{product.name}</h3>
+
+              <p>Category: {product.category}</p>
+
+              <h4>₹{product.price}</h4>
+
+              <div className="product-buttons">
+                <button onClick={() => addToCart(product)}>
+                  Add to Cart
+                </button>
+
+                <button onClick={() => buyNow(product)}>
+                  Buy Now
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 export default ProductList;
-
-
-
- */

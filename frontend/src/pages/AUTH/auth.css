@@ -496,6 +496,16 @@
 }
 
 
+.captcha-box,
+.captcha-box span {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  cursor: default;
+}
+
+
 /* =========================
    MOBILE
 ========================= */
