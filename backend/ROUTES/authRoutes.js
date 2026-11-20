@@ -3,7 +3,9 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
-  getProfile
+  getProfile,
+  updateProfile,
+  changePassword,
  
 } = require("../CONTROLLERS/auth.controller");
 
@@ -19,6 +21,12 @@ router.post("/login", loginUser);
 // get PROFILE
 router.get(
   "/profile", authMiddleware,getProfile)
+
+  // Protected profile update
+router.put("/profile", authMiddleware, updateProfile);
+
+// Protected password change
+router.put("/change-password", authMiddleware, changePassword);
  
 
 module.exports = router;

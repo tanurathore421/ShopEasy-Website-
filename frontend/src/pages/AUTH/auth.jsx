@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import "./auth.css";
@@ -6,13 +7,17 @@ import { useNavigate } from "react-router-dom";
 function Auth({ onClose, onLoginSuccess }) {
   const navigate = useNavigate();
 
-  // Login states
+  // =========================
+  // LOGIN STATES
+  // =========================
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [captcha, setCaptcha] = useState("");
   const [captchaImage, setCaptchaImage] = useState("");
 
-  // Register states
+  // =========================
+  // REGISTER STATES
+  // =========================
   const [name, setName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
@@ -43,7 +48,7 @@ function Auth({ onClose, onLoginSuccess }) {
         "http://localhost:3000/api/captcha/captcha",
         {
           withCredentials: true,
-        },
+        }
       );
 
       setCaptchaImage(response.data.captcha);
@@ -60,163 +65,152 @@ function Auth({ onClose, onLoginSuccess }) {
   // =========================
   // LOGIN
   // =========================
-  /*  const handleLogin = async (e) => {
-    e.preventDefault();
+ 
+const handleLogin = async (e) => {
+  e.preventDefault();
 
-    if (!email || !password || !captcha) {
-      alert("Please fill in all fields");
+  if (!email.trim() || !password || !captcha.trim()) {
+    alert("Please fill in all fields");
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      "http://localhost:3000/api/auth/login",
+      {
+        email: email.trim().toLowerCase(),
+        password,
+        captcha,
+      },
+      {
+        withCredentials: true,
+      }
+    );
+
+    const token = response.data.token;
+    const user = response.data.user;
+
+    if (!token || !user) {
+      alert("Login details not received from backend");
       return;
     }
 
-    try {
-      const response = await axios.post(
-        "http://localhost:3000/api/auth/login",
-        {
-          email,
-          password,
-          captcha,
-        },
-        {
-          withCredentials: true,
-        }
-      );
+    localStorage.setItem("token", token);
+    localStorage.setItem("role", user.role);
+    localStorage.setItem("user", JSON.stringify(user));
 
-      const token = response.data.token;
+    alert("Login successful!");
 
-      if (!token) {
-        alert("Token not received from backend");
-        return;
-      }
-
-      localStorage.setItem("token", token);
-
-      alert("Login successful!");
-
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-
-      handleClose();
-    } catch (error) {
-      console.error("LOGIN ERROR:", error);
-
-      alert(
-        error.response?.data?.message ||
-          "Login failed"
-      );
-
-      getCaptcha();
-    }
-  };
-  
- */
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-
-    if (!email || !password || !captcha) {
-      alert("Please fill in all fields");
-      return;
+    if (typeof onLoginSuccess === "function") {
+      onLoginSuccess();
     }
 
-    try {
-      const response = await axios.post(
-        "http://localhost:3000/api/auth/login",
-        {
-          email,
-          password,
-          captcha,
-        },
-        {
-          withCredentials: true,
-        },
-      );
-
-      const token = response.data.token;
-      const user = response.data.user;
-
-      if (!token || !user) {
-        alert("Login details not received from backend");
-        return;
-      }
-
-      // Save login details
-      localStorage.setItem("token", token);
-      localStorage.setItem("role", user.role);
-      localStorage.setItem("user", JSON.stringify(user));
-
-      alert("Login successful!");
-
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-
-      // Redirect according to user role
-      if (user.role === "admin") {
-        navigate("/admin", { replace: true });
-      } else if (user.role === "wholesaler") {
-        navigate("/wholesaler", { replace: true });
-      } else {
-        navigate("/profile", { replace: true });
-      }
-    } catch (error) {
-      console.error("LOGIN ERROR:", error);
-
-      alert(error.response?.data?.message || "Login failed");
-
-      getCaptcha();
+    if (user.role === "admin") {
+      navigate("/admin", { replace: true });
+    } else if (user.role === "wholesaler") {
+      navigate("/wholesaler", { replace: true });
+    } else {
+      navigate("/profile", { replace: true });
     }
-  };
+
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+
+    alert(
+      error.response?.data?.message || "Login failed"
+    );
+
+    // Refresh CAPTCHA only
+    getCaptcha();
+
+    // Do not close Auth or redirect
+    return;
+  }
+};
+
 
   // =========================
   // REGISTER
   // =========================
-  const handleRegister = async (e) => {
-    e.preventDefault();
+ 
+const handleRegister = async (e) => {
+  e.preventDefault();
 
-    if (!name || !registerEmail || !registerPassword || !confirmPassword) {
-      alert("Please fill in all required fields");
-      return;
-    }
+  if (
+    !name.trim() ||
+    !registerEmail.trim() ||
+    !registerPassword ||
+    !confirmPassword ||
+    !phone.trim()
+  ) {
+    alert("Please fill in all required fields");
+    return;
+  }
 
-    if (registerPassword !== confirmPassword) {
-      alert("Passwords do not match");
-      return;
-    }
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-    try {
-      const response = await axios.post(
-        "http://localhost:3000/api/auth/register",
-        {
-          name,
-          email: registerEmail,
-          password: registerPassword,
-          phone,
-          address,
-        },
-      );
+  if (!emailPattern.test(registerEmail.trim())) {
+    alert("Please enter a valid email address");
+    return;
+  }
 
-      alert(response.data.message || "Registration successful!");
+  const phonePattern = /^[6-9]\d{9}$/;
 
-      // Clear register form
-      setName("");
-      setRegisterEmail("");
-      setRegisterPassword("");
-      setConfirmPassword("");
-      setPhone("");
-      setAddress("");
+  if (!phonePattern.test(phone)) {
+    alert("Please enter a valid 10-digit mobile number");
+    return;
+  }
 
-      // Put registered email in login
-      setEmail(registerEmail);
+  if (registerPassword.length < 6) {
+    alert("Password must be at least 6 characters long");
+    return;
+  }
 
-      // Switch to login
-      setActiveTab("login");
-    } catch (error) {
-      console.error("REGISTER ERROR:", error);
+  if (registerPassword !== confirmPassword) {
+    alert("Passwords do not match");
+    return;
+  }
 
-      alert(error.response?.data?.message || "Registration failed");
-    }
-  };
+  try {
+    const response = await axios.post(
+      "http://localhost:3000/api/auth/register",
+      {
+        name: name.trim(),
+        email: registerEmail.trim().toLowerCase(),
+        password: registerPassword,
+        confirmPassword,
+        phone,
+        address: address.trim(),
+      }
+    );
+
+    alert(
+      response.data.message || "Registration successful!"
+    );
+
+    setEmail(registerEmail.trim().toLowerCase());
+
+    setName("");
+    setRegisterEmail("");
+    setRegisterPassword("");
+    setConfirmPassword("");
+    setPhone("");
+    setAddress("");
+
+    setActiveTab("login");
+
+  } catch (error) {
+    console.error("REGISTER ERROR:", error);
+
+    alert(
+      error.response?.data?.message || "Registration failed"
+    );
+
+    // Stay on Register tab
+    return;
+  }
+};
+
 
   return (
     <div
@@ -229,7 +223,8 @@ function Auth({ onClose, onLoginSuccess }) {
       }}
     >
       <div className="auth-box">
-        {/* Close button */}
+
+        {/* Close Button */}
         <button
           type="button"
           className="auth-close"
@@ -246,9 +241,14 @@ function Auth({ onClose, onLoginSuccess }) {
 
         {/* Tabs */}
         <div className="auth-tabs">
+
           <button
             type="button"
-            className={activeTab === "login" ? "auth-tab active" : "auth-tab"}
+            className={
+              activeTab === "login"
+                ? "auth-tab active"
+                : "auth-tab"
+            }
             onClick={() => setActiveTab("login")}
           >
             Login
@@ -257,24 +257,31 @@ function Auth({ onClose, onLoginSuccess }) {
           <button
             type="button"
             className={
-              activeTab === "register" ? "auth-tab active" : "auth-tab"
+              activeTab === "register"
+                ? "auth-tab active"
+                : "auth-tab"
             }
             onClick={() => setActiveTab("register")}
           >
             Register
           </button>
+
         </div>
 
         {/* =========================
-            LOGIN
+            LOGIN FORM
         ========================= */}
         {activeTab === "login" && (
           <div className="auth-form-container">
+
             <h2>Welcome Back!</h2>
 
-            <p className="auth-subtitle">Login to your account</p>
+            <p className="auth-subtitle">
+              Login to your account
+            </p>
 
             <form onSubmit={handleLogin}>
+
               <div className="auth-input-group">
                 <label>Email</label>
 
@@ -283,6 +290,7 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
 
@@ -294,11 +302,13 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
               </div>
 
               {/* CAPTCHA */}
               <div className="captcha-group">
+
                 <div className="captcha-box">
                   <span>{captchaImage}</span>
                 </div>
@@ -316,37 +326,53 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="CAPTCHA"
                   value={captcha}
                   onChange={(e) => setCaptcha(e.target.value)}
+                  required
                 />
+
               </div>
 
               <div className="auth-options">
+
                 <label>
                   <input type="checkbox" />
                   Remember me
                 </label>
 
-                <a href="/forgot-password">Forgot Password?</a>
+                <a href="/forgot-password">
+                  Forgot Password?
+                </a>
+
               </div>
 
-              <button type="submit" className="auth-submit">
+              <button
+                type="submit"
+                className="auth-submit"
+              >
                 Login
               </button>
+
             </form>
 
             <p className="auth-switch">
               Don't have an account?
-              <button type="button" onClick={() => setActiveTab("register")}>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("register")}
+              >
                 Sign Up
               </button>
             </p>
+
           </div>
         )}
 
         {/* =========================
-            REGISTER
+            REGISTER FORM
         ========================= */}
         {activeTab === "register" && (
           <div className="auth-form-container">
+
             <h2>Create Account</h2>
 
             <p className="auth-subtitle">
@@ -354,6 +380,8 @@ function Auth({ onClose, onLoginSuccess }) {
             </p>
 
             <form onSubmit={handleRegister}>
+
+              {/* Full Name */}
               <div className="auth-input-group">
                 <label>Full Name</label>
 
@@ -362,9 +390,11 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="Enter your full name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  required
                 />
               </div>
 
+              {/* Email */}
               <div className="auth-input-group">
                 <label>Email</label>
 
@@ -373,20 +403,25 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="Enter your email"
                   value={registerEmail}
                   onChange={(e) => setRegisterEmail(e.target.value)}
+                  required
                 />
               </div>
 
+              {/* Password */}
               <div className="auth-input-group">
                 <label>Password</label>
 
                 <input
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Create a password (minimum 6 characters)"
                   value={registerPassword}
                   onChange={(e) => setRegisterPassword(e.target.value)}
+                  minLength={6}
+                  required
                 />
               </div>
 
+              {/* Confirm Password */}
               <div className="auth-input-group">
                 <label>Confirm Password</label>
 
@@ -395,20 +430,31 @@ function Auth({ onClose, onLoginSuccess }) {
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  minLength={6}
+                  required
                 />
               </div>
 
+              {/* Phone */}
               <div className="auth-input-group">
                 <label>Phone</label>
 
                 <input
                   type="tel"
-                  placeholder="Enter your phone number"
+                  placeholder="Enter 10-digit mobile number"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) =>
+                    setPhone(
+                      e.target.value.replace(/\D/g, "").slice(0, 10)
+                    )
+                  }
+                  pattern="[6-9][0-9]{9}"
+                  maxLength={10}
+                  required
                 />
               </div>
 
+              {/* Address */}
               <div className="auth-input-group">
                 <label>Address</label>
 
@@ -420,24 +466,35 @@ function Auth({ onClose, onLoginSuccess }) {
                 />
               </div>
 
+              {/* Terms */}
               <label className="terms">
-                <input type="checkbox" required />I agree to the Terms &
-                Conditions
+                <input type="checkbox" required />
+                I agree to the Terms & Conditions
               </label>
 
-              <button type="submit" className="auth-submit">
+              <button
+                type="submit"
+                className="auth-submit"
+              >
                 Create Account
               </button>
+
             </form>
 
             <p className="auth-switch">
               Already have an account?
-              <button type="button" onClick={() => setActiveTab("login")}>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("login")}
+              >
                 Login
               </button>
             </p>
+
           </div>
         )}
+
       </div>
     </div>
   );
